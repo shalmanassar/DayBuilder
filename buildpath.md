@@ -662,7 +662,7 @@ Convention already in place: `{user_id}_timelog.db` per user.
 - [x] Version number displayed in Settings/Help screen (reads from `version.json`)
 - [x] GitHub repo — ✅ DONE (https://github.com/shalmanassar/DayBuilder)
 - [x] PyInstaller build for bootstrap.exe
-- [ ] Deploy web files to share
+- [x] Deploy web files to share
 - [ ] Test with second user (different target workbook)
 - **Done when:** a second user on a different machine can complete full setup and post to their own target
 
@@ -677,6 +677,7 @@ C:\localspace_laptop\DayBuilder\
 ├── db.py               ← SQLite layer: init_db, get/save/delete_draft, get/insert/delete timelog rows, date format helpers
 ├── post.py             ← Post logic: validate_blocks, flatten_blocks, aggregate_productivity, calculate_hours, build_comment, backup_workbook, write_workbook, sync_db, post_day
 ├── daybuilder.spec     ← PyInstaller one-file spec for bootstrap.exe
+├── deploy.py           ← Deploy script: bumps version, copies web/ to network share
 ├── .gitignore          ← Excludes: timelog.db, config.json, backup/, cache/, *.exe, __pycache__, logs
 ├── README.md
 ├── buildpath.md        ← This file (full spec)
