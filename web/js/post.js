@@ -61,8 +61,8 @@ const Post = (() => {
     return await res.json();
   }
 
-  function bindPostButton(btnPost, btnOpen, getBlocks, dateIso) {
-    today = dateIso || today;
+  function bindPostButton(btnPost, btnOpen, getBlocks, getDate) {
+    const dateGetter = typeof getDate === 'function' ? getDate : () => getDate || today;
 
     btnPost.addEventListener('click', async () => {
       const blocks = getBlocks();
@@ -73,7 +73,6 @@ const Post = (() => {
         return;
       }
 
-      // Warn on soft issues
       const warnings = checks.filter(c => c.status === 'warn');
       if (warnings.length > 0) {
         const msg = warnings.map(w => w.label).join(', ');
@@ -83,7 +82,7 @@ const Post = (() => {
       btnPost.disabled = true;
       btnPost.textContent = 'Posting...';
 
-      const result = await doPost(today);
+      const result = await doPost(dateGetter());
 
       if (result.ok) {
         showToast('Posted successfully!', 'success');

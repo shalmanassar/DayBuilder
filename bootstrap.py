@@ -80,6 +80,22 @@ def sync_cache(web_root):
         logger.warning(f"Cache sync failed: {e}")
 
 
+def get_version(web_root):
+    """Read version from version.json in web_root."""
+    ver_path = os.path.join(web_root, "version.json")
+    if os.path.isfile(ver_path):
+        with open(ver_path) as f:
+            return json.load(f).get("version", "0.0.0")
+    return "0.0.0"
+
+
+def cache_is_stale(web_root):
+    """Compare share version.json to cached version.json. Returns True if cache needs refresh."""
+    share_ver = get_version(web_root)
+    cache_ver = get_version(str(CACHE_DIR))
+    return share_ver != cache_ver
+
+
 def main():
     logger.info("DayBuilder starting.")
     cfg = load_config()
@@ -104,7 +120,15 @@ def main():
             logger.error("Share unreachable and no cache. Exiting.")
             sys.exit(1)
     else:
-        sync_cache(web_root)
+        # Cache busting: only sync if version changed
+        if cache_is_stale(web_root):
+            sync_cache(web_root)
+            logger.info(f"Cache updated to version {get_version(web_root)}")
+        else:
+            logger.info("Cache is current, skipping sync.")
+
+    # Get version for URL param
+    version = get_version(serve_from)
 
     # Ensure defaults in config
     cfg.setdefault("port", 5150)
@@ -121,9 +145,9 @@ def main():
     app = create_app(cfg, serve_from, db_path, share_ok)
     port = cfg["port"]
 
-    # Open browser
-    webbrowser.open(f"http://localhost:{port}")
-    logger.info(f"Serving on port {port}, web_root={serve_from}")
+    # Open browser with cache-busting version param
+    webbrowser.open(f"http://localhost:{port}?v={version}")
+    logger.info(f"Serving on port {port}, web_root={serve_from}, version={version}")
     app.run(host="127.0.0.1", port=port, debug=False)
 
 

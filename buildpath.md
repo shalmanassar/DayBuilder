@@ -651,17 +651,17 @@ Convention already in place: `{user_id}_timelog.db` per user.
 - [x] Report view (brief-style summary)
 - [x] Clipboard export (via report modal)
 
-### Phase 5: Polish & Deploy ← START HERE
-- [ ] Tier 2 web-based setup wizard (`/setup` route — user ID, target workbook browse, sheet select, schedule)
-- [ ] Historical day navigation (date picker in header, load any past day)
-- [ ] Offline mode (serve from cache, limited functionality, banner)
-- [ ] Cache busting (version.json comparison on launch, `?v=` param)
-- [ ] Logging (file rotation already in bootstrap.py — add debug toggle in Settings)
-- [ ] Settings panel (⚙) — change target workbook, sheet, schedule, sync path, view version, reset options
-- [ ] Exit button in UI — calls `/api/shutdown`, Flask shuts down gracefully, syncs dirty DB, releases memory
-- [ ] Version number displayed in Settings/Help screen (reads from `version.json`)
-- [ ] GitHub repo — ✅ DONE (https://github.com/shalmanassar/DayBuilder)
-- [ ] PyInstaller build for bootstrap.exe
+### Phase 5: Polish & Deploy ✅ COMPLETE
+- [x] Tier 2 web-based setup wizard (`/setup` route — user ID, target workbook browse, sheet select, schedule)
+- [x] Historical day navigation (date picker in header, load any past day)
+- [x] Offline mode (serve from cache, limited functionality, banner)
+- [x] Cache busting (version.json comparison on launch, `?v=` param)
+- [x] Logging (file rotation already in bootstrap.py — add debug toggle in Settings)
+- [x] Settings panel (⚙) — change target workbook, sheet, schedule, sync path, view version, reset options
+- [x] Exit button in UI — calls `/api/shutdown`, Flask shuts down gracefully, syncs dirty DB, releases memory
+- [x] Version number displayed in Settings/Help screen (reads from `version.json`)
+- [x] GitHub repo — ✅ DONE (https://github.com/shalmanassar/DayBuilder)
+- [x] PyInstaller build for bootstrap.exe
 - [ ] Deploy web files to share
 - [ ] Test with second user (different target workbook)
 - **Done when:** a second user on a different machine can complete full setup and post to their own target
@@ -672,10 +672,11 @@ Convention already in place: `{user_id}_timelog.db` per user.
 
 ```
 C:\localspace_laptop\DayBuilder\
-├── bootstrap.py        ← Entry point: logging, config load, Tier 1 setup (tkinter), offline detect, cache sync, starts Flask
-├── app.py              ← Flask app factory. Routes: /, /api/config, /api/day/{date}, /api/status, /api/recents/{type}, /api/post/{date}, /api/open-target, /api/history
+├── bootstrap.py        ← Entry point: logging, config load, Tier 1 setup (tkinter), offline detect, cache busting, starts Flask
+├── app.py              ← Flask app factory. Routes: /, /setup, /api/config, /api/day/{date}, /api/status, /api/recents/{type}, /api/post/{date}, /api/open-target, /api/history, /api/browse, /api/workbook/sheets, /api/shutdown, /api/reset/{level}
 ├── db.py               ← SQLite layer: init_db, get/save/delete_draft, get/insert/delete timelog rows, date format helpers
 ├── post.py             ← Post logic: validate_blocks, flatten_blocks, aggregate_productivity, calculate_hours, build_comment, backup_workbook, write_workbook, sync_db, post_day
+├── daybuilder.spec     ← PyInstaller one-file spec for bootstrap.exe
 ├── .gitignore          ← Excludes: timelog.db, config.json, backup/, cache/, *.exe, __pycache__, logs
 ├── README.md
 ├── buildpath.md        ← This file (full spec)
@@ -685,15 +686,17 @@ C:\localspace_laptop\DayBuilder\
 ├── backup/             ← Auto-created on post (workbook backups)
 ├── cache/              ← Auto-created on launch (offline fallback copy of web/)
 └── web/                ← Simulated shared folder (serves as Flask static root)
-    ├── index.html      ← SPA shell: header, timeline container, footer with POST/Report/Open Target
+    ├── index.html      ← SPA shell: header with date nav, timeline container, footer with POST/Report/Open Target
+    ├── setup.html      ← Tier 2 web-based setup wizard (5 steps)
     ├── shared_config.json  ← Device types, asset paths, quotas (all users read this)
     ├── version.json    ← Cache-busting version tag
-    ├── css/app.css     ← RADscout dark palette, timeline blocks, guided modal, validation, report, toast styles
-    ├── js/app.js       ← Main wiring: loads status, inits Timeline, binds Guided/Post/Report buttons, auto-save
+    ├── css/app.css     ← RADscout dark palette, timeline blocks, guided modal, validation, report, settings, toast styles
+    ├── js/app.js       ← Main wiring: loads status, inits Timeline, date nav, binds Guided/Post/Report/Settings buttons, auto-save
     ├── js/timeline.js  ← Timeline engine: render, edit popover, drag resize/reorder, undo/redo, gap/overlap
     ├── js/guided.js    ← Guided entry modal: type→path→device→qty→time→memo flow, recents, quick-add
     ├── js/post.js      ← Client-side validation, POST button logic, toast notifications
     ├── js/report.js    ← Report modal: productivity table, time breakdown, clipboard copy
+    ├── js/settings.js  ← Settings panel: config editing, version display, reset, debug toggle, exit
     └── assets/         ← (empty, for future icons/fonts)
 ```
 

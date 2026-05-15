@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DayBuilder — Setup</title>
+  <link rel="stylesheet" href="css/app.css">
+  <style>
+    .setup-container {
+      max-width: 480px;
+      margin: 3rem auto;
+      padding: 2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .setup-container h1 { margin-bottom: 0.5rem; }
+    .setup-container p.sub { color: var(--text-muted); margin-bottom: 1.5rem; }
+    .setup-step { display: none; }
+    .setup-step.active { display: block; }
+    .setup-label { display: block; color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.3rem; }
+    .setup-input {
+      width: 100%; padding: 0.6rem; margin-bottom: 1rem;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text-primary); font-size: 1rem;
+    }
+    .setup-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .setup-row .setup-input { flex: 1; margin-bottom: 0; }
+    .setup-browse {
+      padding: 0.6rem 1rem; background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text-primary); cursor: pointer; white-space: nowrap;
+    }
+    .setup-browse:hover { background: var(--accent); }
+    .setup-btn {
+      width: 100%; padding: 0.75rem; margin-top: 0.5rem;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;
+    }
+    .setup-btn:hover { background: var(--accent-hover); }
+    .setup-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .setup-back { background: none; border: none; color: var(--text-muted); cursor: pointer; margin-top: 0.5rem; }
+    .setup-back:hover { color: var(--text-primary); }
+    .sheet-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    .sheet-opt {
+      padding: 0.5rem 1rem; background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 6px; cursor: pointer; color: var(--text-primary);
+    }
+    .sheet-opt:hover, .sheet-opt.selected { background: var(--accent); border-color: var(--accent); }
+    .schedule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; }
+    .schedule-grid label { font-size: 0.8rem; color: var(--text-muted); }
+    .schedule-grid input { width: 100%; padding: 0.4rem; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); }
+    .setup-error { color: var(--danger); font-size: 0.85rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="setup-container">
+    <h1>☀ DayBuilder Setup</h1>
+    <p class="sub">Let's get you configured.</p>
+
+    <!-- Step 1: User ID -->
+    <div class="setup-step active" id="step1">
+      <label class="setup-label">Your user ID (login name)</label>
+      <input class="setup-input" id="userId" placeholder="e.g. chrlsim" autofocus>
+      <label class="setup-label">Display name</label>
+      <input class="setup-input" id="displayName" placeholder="e.g. Charles">
+      <button class="setup-btn" id="btn1">Next →</button>
+    </div>
+
+    <!-- Step 2: Target workbook -->
+    <div class="setup-step" id="step2">
+      <label class="setup-label">Target workbook (.xlsm)</label>
+      <div class="setup-row">
+        <input class="setup-input" id="targetWorkbook" placeholder="Browse or paste path..." readonly>
+        <button class="setup-browse" id="browseWb">Browse</button>
+      </div>
+      <div class="setup-error" id="wbError"></div>
+      <button class="setup-btn" id="btn2">Next →</button>
+      <button class="setup-back" id="back2">← Back</button>
+    </div>
+
+    <!-- Step 3: Sheet select -->
+    <div class="setup-step" id="step3">
+      <label class="setup-label">Select your sheet</label>
+      <div class="sheet-list" id="sheetList">Loading sheets...</div>
+      <div class="setup-error" id="sheetError"></div>
+      <button class="setup-btn" id="btn3">Next →</button>
+      <button class="setup-back" id="back3">← Back</button>
+    </div>
+
+    <!-- Step 4: Sync target -->
+    <div class="setup-step" id="step4">
+      <label class="setup-label">Sync target path (shared POST folder)</label>
+      <div class="setup-row">
+        <input class="setup-input" id="syncTarget" placeholder="Browse or paste path...">
+        <button class="setup-browse" id="browseSt">Browse</button>
+      </div>
+      <button class="setup-btn" id="btn4">Next →</button>
+      <button class="setup-back" id="back4">← Back</button>
+    </div>
+
+    <!-- Step 5: Schedule -->
+    <div class="setup-step" id="step5">
+      <label class="setup-label">Default schedule</label>
+      <div class="schedule-grid">
+        <div><label>Start time</label><input type="time" id="schedStart" value="07:00"></div>
+        <div><label>End time</label><input type="time" id="schedEnd" value="16:30"></div>
+        <div><label>Break count</label><input type="number" id="schedBreaks" value="2" min="0" max="4"></div>
+        <div><label>Break (min)</label><input type="number" id="schedBreakMin" value="15" min="5" max="60"></div>
+        <div><label>Lunch (min)</label><input type="number" id="schedLunch" value="30" min="15" max="60"></div>
+      </div>
+      <button class="setup-btn" id="btn5">Finish Setup ✓</button>
+      <button class="setup-back" id="back5">← Back</button>
+    </div>
+
+    <!-- Done -->
+    <div class="setup-step" id="stepDone">
+      <h2 style="color:var(--success)">✓ Setup Complete</h2>
+      <p style="margin-top:0.5rem;color:var(--text-muted)">Redirecting to your day view...</p>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const state = {};
+    let selectedSheet = null;
+
+    function show(id) {
+      document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // Step 1 → 2
+    document.getElementById('btn1').onclick = () => {
+      const uid = document.getElementById('userId').value.trim();
+      if (!uid) return;
+      state.user_id = uid;
+      state.user_display_name = document.getElementById('displayName').value.trim() || uid;
+      show('step2');
+    };
+
+    // Browse workbook
+    document.getElementById('browseWb').onclick = async () => {
+      const res = await fetch('/api/browse', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({type: 'file', title: 'Select target workbook', filetypes: [['Excel', '*.xlsm *.xlsx']]})
+      });
+      const data = await res.json();
+      if (data.path) document.getElementById('targetWorkbook').value = data.path;
+    };
+
+    // Step 2 → 3
+    document.getElementById('btn2').onclick = async () => {
+      const wb = document.getElementById('targetWorkbook').value.trim();
+      if (!wb) { document.getElementById('wbError').textContent = 'Select a workbook'; return; }
+      state.target_workbook = wb;
+      document.getElementById('wbError').textContent = '';
+      show('step3');
+      // Load sheets
+      const res = await fetch('/api/workbook/sheets?path=' + encodeURIComponent(wb));
+      const data = await res.json();
+      const list = document.getElementById('sheetList');
+      if (data.error) { list.textContent = data.error; return; }
+      list.innerHTML = '';
+      data.sheets.forEach(name => {
+        const btn = document.createElement('button');
+        btn.className = 'sheet-opt';
+        btn.textContent = name;
+        if (name.toLowerCase() === state.user_display_name.toLowerCase()) {
+          btn.classList.add('selected');
+          selectedSheet = name;
+        }
+        btn.onclick = () => {
+          list.querySelectorAll('.sheet-opt').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedSheet = name;
+        };
+        list.appendChild(btn);
+      });
+    };
+
+    // Step 3 → 4
+    document.getElementById('btn3').onclick = () => {
+      if (!selectedSheet) { document.getElementById('sheetError').textContent = 'Select a sheet'; return; }
+      state.target_sheet = selectedSheet;
+      show('step4');
+    };
+
+    // Browse sync target
+    document.getElementById('browseSt').onclick = async () => {
+      const res = await fetch('/api/browse', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({type: 'folder', title: 'Select sync target folder'})
+      });
+      const data = await res.json();
+      if (data.path) document.getElementById('syncTarget').value = data.path;
+    };
+
+    // Step 4 → 5
+    document.getElementById('btn4').onclick = () => {
+      state.sync_target = document.getElementById('syncTarget').value.trim() || null;
+      show('step5');
+    };
+
+    // Finish
+    document.getElementById('btn5').onclick = async () => {
+      state.schedule = {
+        default_start: document.getElementById('schedStart').value,
+        default_end: document.getElementById('schedEnd').value,
+        break_count: parseInt(document.getElementById('schedBreaks').value) || 2,
+        break_minutes: parseInt(document.getElementById('schedBreakMin').value) || 15,
+        lunch_minutes: parseInt(document.getElementById('schedLunch').value) || 30
+      };
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(state)
+      });
+      show('stepDone');
+      setTimeout(() => { window.location.href = '/'; }, 1500);
+    };
+
+    // Back buttons
+    document.getElementById('back2').onclick = () => show('step1');
+    document.getElementById('back3').onclick = () => show('step2');
+    document.getElementById('back4').onclick = () => show('step3');
+    document.getElementById('back5').onclick = () => show('step4');
+  })();
+  </script>
+</body>
+</html>
