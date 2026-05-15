@@ -34,7 +34,7 @@ On first run, select the shared `web/` folder when prompted. The app opens in yo
 ## Project Status
 
 - [x] Phase 1: Foundation
-- [ ] Phase 2: Timeline UI
-- [ ] Phase 3: Guided Entry
-- [ ] Phase 4: Post & Report
+- [x] Phase 2: Timeline UI
+- [x] Phase 3: Guided Entry
+- [x] Phase 4: Post & Report
 - [ ] Phase 5: Polish & Deploy
