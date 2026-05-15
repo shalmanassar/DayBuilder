@@ -127,3 +127,116 @@ footer {
 }
 
 .status-banner.visible { display: block; }
+
+
+/* Timeline blocks */
+.tl-block {
+  position: relative;
+  padding: 0.75rem 1rem;
+  margin: 0.25rem 0;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  border-left: 4px solid var(--accent);
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 0.15s;
+}
+
+.tl-block:hover { box-shadow: 0 0 0 1px var(--accent); }
+.tl-block.dragging { opacity: 0.5; }
+.tl-block.drag-over { box-shadow: 0 -2px 0 0 var(--accent); }
+
+.tl-time {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.tl-label { font-weight: 600; text-transform: capitalize; }
+.tl-memo { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+/* Resize handles */
+.tl-handle {
+  position: absolute;
+  left: 0; right: 0;
+  height: 6px;
+  cursor: ns-resize;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.tl-handle-top { top: 0; border-radius: 6px 6px 0 0; }
+.tl-handle-bottom { bottom: 0; border-radius: 0 0 6px 6px; }
+.tl-block:hover .tl-handle { opacity: 1; background: rgba(52,152,219,0.3); }
+
+/* Gap / Overlap */
+.tl-gap {
+  text-align: center;
+  padding: 0.4rem;
+  margin: 0.2rem 0;
+  background: rgba(243,156,18,0.15);
+  border: 1px dashed var(--warning);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--warning);
+}
+
+.tl-overlap {
+  text-align: center;
+  padding: 0.4rem;
+  margin: 0.2rem 0;
+  background: rgba(231,76,60,0.15);
+  border: 1px dashed var(--danger);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+
+/* Edit popover */
+.tl-popover {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 0.5rem 0;
+  z-index: 100;
+}
+
+.tl-popover label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.tl-popover input, .tl-popover select {
+  display: block;
+  width: 100%;
+  padding: 0.4rem;
+  margin-top: 0.2rem;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.pop-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.pop-actions button {
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pop-save { background: var(--accent); color: #fff; }
+.pop-delete { background: var(--danger); color: #fff; }
+.pop-close { background: var(--border); color: var(--text-primary); }
