@@ -23,7 +23,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='bootstrap',
+    name='RMA Job Tracking Launcher',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

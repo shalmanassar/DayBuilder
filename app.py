@@ -63,7 +63,7 @@ def create_app(cfg, web_root, db_path, share_ok):
         rows = db.get_timelog_rows(date_iso, db_path)
         if rows:
             blocks = _rows_to_blocks(rows)
-            return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None})
+            return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
         return jsonify({"date": date_iso, "blocks": [], "posted": False, "posted_at": None})
 
     @app.route("/api/day/<date_iso>", methods=["POST"])
@@ -133,6 +133,35 @@ def create_app(cfg, web_root, db_path, share_ok):
         os.startfile(target)
         return jsonify({"ok": True})
 
+    # --- /api/calendar/{year}/{month} ---
+    @app.route("/api/calendar/<int:year>/<int:month>", methods=["GET"])
+    def get_calendar(year, month):
+        import calendar
+        conn = db.get_db(db_path)
+        days = {}
+        # Check DayDraft entries for this month
+        prefix = f"{year}-{month:02d}-"
+        drafts = conn.execute(
+            "SELECT date, blocks, posted FROM DayDraft WHERE date LIKE ?", (prefix + '%',)
+        ).fetchall()
+        for row in drafts:
+            d = row["date"]
+            blocks = json.loads(row["blocks"]) if row["blocks"] else []
+            if row["posted"]:
+                days[d] = "posted"
+            elif any(b.get("type") == "clock_out" for b in blocks):
+                days[d] = "complete"
+            else:
+                days[d] = "draft"
+        # Check TimeLogTable for days with history but no draft
+        all_rows = conn.execute("SELECT DISTINCT date FROM TimeLogTable").fetchall()
+        conn.close()
+        for row in all_rows:
+            iso = db._legacy_to_iso(row["date"])
+            if iso and iso.startswith(prefix) and iso not in days:
+                days[iso] = "history"
+        return jsonify({"year": year, "month": month, "days": days})
+
     # --- /api/history ---
     @app.route("/api/history", methods=["GET"])
     def get_history():
@@ -147,21 +176,37 @@ def create_app(cfg, web_root, db_path, share_ok):
         data = request.get_json(force=True)
         browse_type = data.get("type", "folder")
         title = data.get("title", "Select")
+        initial_dir = data.get("initial_dir")
         try:
             import tkinter as tk
             from tkinter import filedialog
             root = tk.Tk()
             root.withdraw()
             root.attributes("-topmost", True)
+            kwargs = {"title": title}
+            if initial_dir and os.path.isdir(initial_dir):
+                kwargs["initialdir"] = initial_dir
             if browse_type == "file":
                 filetypes = data.get("filetypes", [["All", "*.*"]])
-                path = filedialog.askopenfilename(title=title, filetypes=filetypes)
+                kwargs["filetypes"] = filetypes
+                path = filedialog.askopenfilename(**kwargs)
             else:
-                path = filedialog.askdirectory(title=title)
+                path = filedialog.askdirectory(**kwargs)
             root.destroy()
             return jsonify({"path": path or None})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    # --- /api/browse/files (list workbook files in a folder) ---
+    @app.route("/api/browse/files", methods=["POST"])
+    def browse_files():
+        data = request.get_json(force=True)
+        folder = data.get("path", "")
+        if not folder or not os.path.isdir(folder):
+            return jsonify({"error": "Folder not found", "files": []}), 404
+        exts = ('.xlsm', '.xlsx')
+        files = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
+        return jsonify({"files": files, "path": folder})
 
     # --- /api/workbook/sheets ---
     @app.route("/api/workbook/sheets", methods=["GET"])
@@ -188,11 +233,8 @@ def create_app(cfg, web_root, db_path, share_ok):
         if sync_target and user_id:
             post.sync_db(db_path, sync_target, user_id)
         # Shutdown Flask
-        func = request.environ.get("werkzeug.server.shutdown")
-        if func:
-            func()
-        else:
-            os.kill(os.getpid(), signal.SIGTERM)
+        import threading
+        threading.Thread(target=lambda: (os._exit(0))).start()
         return jsonify({"ok": True})
 
     # --- /api/reset/{level} ---
@@ -232,24 +274,41 @@ def create_app(cfg, web_root, db_path, share_ok):
         """Best-effort reconstruction of blocks from legacy timelog rows."""
         blocks = []
         for i, r in enumerate(rows):
+            start = _12h_to_24h(r.get("time", ""))
             block = {
-                "id": r.get("uid", f"legacy_{i}"),
-                "type": r.get("job", "admin"),
+                "id": r.get("uid") or f"legacy_{i}",
+                "type": _normalize_job(r.get("job")),
                 "subtype": None,
-                "device": r.get("device"),
-                "qty": r.get("qty"),
-                "start": _12h_to_24h(r.get("time", "")),
+                "device": r.get("device") if r.get("device") else None,
+                "qty": int(r["qty"]) if r.get("qty") else None,
+                "start": start,
                 "end": None,
-                "memo": r.get("memo")
+                "memo": r.get("memo") if r.get("memo") else None,
+                "_reconstructed": True
             }
             # Calculate end from elapsed
-            if r.get("e_time") and block["start"]:
+            if r.get("e_time") and start:
                 mins = _elapsed_to_min(r["e_time"])
-                h, m = int(block["start"].split(":")[0]), int(block["start"].split(":")[1])
-                total = h * 60 + m + mins
-                block["end"] = f"{total // 60:02d}:{total % 60:02d}"
+                if mins > 0:
+                    h, m = int(start.split(":")[0]), int(start.split(":")[1])
+                    total = h * 60 + m + mins
+                    block["end"] = f"{total // 60:02d}:{total % 60:02d}"
             blocks.append(block)
         return blocks
+
+    def _normalize_job(job):
+        """Map legacy job names to current block types."""
+        if not job:
+            return "admin"
+        j = job.lower().strip()
+        mapping = {
+            "asset processing": "asset_processing", "asset_proc": "asset_processing",
+            "project": "project", "admin": "admin", "meeting": "meeting",
+            "5s": "5s", "learning": "learning", "break": "break", "lunch": "lunch",
+            "clock in": "clock_in", "clock_in": "clock_in",
+            "clock out": "clock_out", "clock_out": "clock_out"
+        }
+        return mapping.get(j, j.replace(" ", "_"))
 
     def _12h_to_24h(t):
         """H:MM:SS AM/PM → HH:MM"""

@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+  <div class="title-bar">
+    <span class="title-bar-left">RAD RMA Productivity Tracking Utility</span>
+    <span class="title-bar-right" id="titleBarUser">USER: —</span>
+  </div>
+
   <div class="status-banner" id="offlineBanner">⚠ Offline mode — some features unavailable</div>
 
   <header>
@@ -19,9 +24,14 @@
     <div class="controls">
       <button id="btnToday" title="Go to today">Today</button>
       <button id="btnSettings" title="Settings">⚙</button>
-      <button id="btnClipboard" title="Copy report">📋</button>
+      <button id="btnClipboard" title="Copy report">⧉</button>
     </div>
   </header>
+
+  <div class="calendar-accordion" id="calendarAccordion">
+    <button class="calendar-toggle" id="calendarToggle">▸ Calendar</button>
+    <div class="calendar-body" id="calendarBody"></div>
+  </div>
 
   <main>
     <div class="timeline" id="timeline">

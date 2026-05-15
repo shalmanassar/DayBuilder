@@ -8,7 +8,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-BASE_DIR = Path(__file__).parent.resolve()
+BASE_DIR = Path(sys.executable).parent.resolve() if getattr(sys, 'frozen', False) else Path(__file__).parent.resolve()
 CONFIG_PATH = BASE_DIR / "config.json"
 LOG_PATH = BASE_DIR / "daybuilder.log"
 CACHE_DIR = BASE_DIR / "cache"
@@ -34,20 +34,47 @@ def save_config(cfg):
 
 
 def tier1_setup():
-    """Native file dialog to select web_root if missing."""
+    """Native dialog to select RMAJobLogger directory and pre-fill username."""
     try:
         import tkinter as tk
-        from tkinter import filedialog, messagebox
+        from tkinter import filedialog, messagebox, simpledialog
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("DayBuilder Setup", "Select the DayBuilder shared web folder.")
-        folder = filedialog.askdirectory(title="Select DayBuilder web folder")
+
+        # Pre-fill username
+        default_user = os.getlogin()
+        user_id = simpledialog.askstring("DayBuilder Setup", "Your username (login):", initialvalue=default_user, parent=root)
+        if not user_id:
+            user_id = default_user
+
+        # Ask for RMAJobLogger directory
+        messagebox.showinfo("DayBuilder Setup", "Select the RMAJobLogger folder on the shared drive.")
+        # Try default start path
+        start_path = r"W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering"
+        if not os.path.isdir(start_path):
+            start_path = os.path.expanduser("~")
+        folder = filedialog.askdirectory(title="Select the RMAJobLogger folder", initialdir=start_path)
         root.destroy()
-        if folder:
-            return folder
+
+        if not folder:
+            return None, user_id
+
+        # Auto-discover web_root and sync_target
+        web_root = os.path.join(folder, "DayBuilder", "web")
+        sync_target = os.path.join(folder, "POST")
+
+        # Validate
+        if not os.path.isdir(web_root):
+            logger.warning(f"DayBuilder/web not found under {folder}, falling back to local web/")
+            web_root = None
+        if not os.path.isdir(sync_target):
+            logger.warning(f"POST/ not found under {folder}")
+            sync_target = None
+
+        return {"web_root": web_root, "sync_target": sync_target, "user_id": user_id}, user_id
     except Exception as e:
         logger.error(f"Tier 1 setup failed: {e}")
-    return None
+    return None, None
 
 
 def resolve_web_root(cfg):
@@ -103,12 +130,27 @@ def main():
     # Tier 1: ensure web_root is set
     web_root = resolve_web_root(cfg)
     if not web_root:
-        web_root = tier1_setup()
+        result, user_id = tier1_setup()
+        if result and result.get("web_root"):
+            cfg["web_root"] = result["web_root"]
+            if result.get("sync_target"):
+                cfg["sync_target"] = result["sync_target"]
+            if user_id:
+                cfg.setdefault("user_id", user_id)
+            save_config(cfg)
+            web_root = resolve_web_root(cfg)
         if not web_root:
-            logger.error("No web_root selected. Exiting.")
-            sys.exit(1)
-        cfg["web_root"] = web_root
-        save_config(cfg)
+            # Fall back to local web/ for dev
+            local_web = BASE_DIR / "web"
+            if local_web.is_dir():
+                web_root = str(local_web)
+                cfg["web_root"] = web_root
+                if user_id:
+                    cfg.setdefault("user_id", user_id)
+                save_config(cfg)
+            else:
+                logger.error("No web_root available. Exiting.")
+                sys.exit(1)
 
     # Offline detection
     share_ok = check_share(web_root)

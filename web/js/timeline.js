@@ -82,14 +82,22 @@ const Timeline = (() => {
     // Render gaps/overlaps between blocks
     for (let i = 0; i < sorted.length; i++) {
       if (i > 0) {
-        const prevEnd = sorted[i - 1].end;
-        const curStart = sorted[i].start;
-        if (prevEnd && curStart) {
+        const prev = sorted[i - 1];
+        const cur = sorted[i];
+        // For clock_in marker, use its start as the "end" for gap detection
+        const prevEnd = (prev.type === 'clock_in' || prev.type === 'clock_out') ? prev.start : prev.end;
+        const curStart = cur.start;
+        // Skip if current is clock_out (gap before clock_out is an open slot)
+        if (prevEnd && curStart && cur.type !== 'clock_out') {
           if (prevEnd < curStart) {
             container.appendChild(createGap(prevEnd, curStart));
           } else if (prevEnd > curStart) {
             container.appendChild(createOverlap(prevEnd, curStart));
           }
+        }
+        // Open slot before clock_out
+        if (cur.type === 'clock_out' && prevEnd && cur.start && prevEnd < cur.start) {
+          container.appendChild(createGap(prevEnd, cur.start));
         }
       }
       container.appendChild(createBlockEl(sorted[i]));
@@ -101,20 +109,46 @@ const Timeline = (() => {
     el.className = 'tl-block';
     el.dataset.id = block.id;
     const color = TYPE_COLORS[block.type] || '#3498db';
+    const isMarker = block.type === 'clock_in' || block.type === 'clock_out';
+
+    if (isMarker) {
+      el.classList.add('tl-marker');
+      if (block.type === 'clock_out') el.classList.add('clock-out');
+      const label = block.type === 'clock_in' ? 'CLOCK IN' : 'CLOCK OUT';
+      el.innerHTML = `<span class="tl-time">${block.start || '?'}</span><span class="tl-label">${label}</span>`;
+      el.addEventListener('click', () => showPopover(block, el));
+      return el;
+    }
+
     el.style.borderLeftColor = color;
 
     const label = block.type ? block.type.replace(/_/g, ' ') : 'block';
+    const isAsset = block.type === 'asset_processing';
     const device = block.device ? ` · ${block.device}` : '';
     const qty = block.qty ? ` x${block.qty}` : '';
     const memo = block.memo ? `<div class="tl-memo">${block.memo}</div>` : '';
 
+    // Device/qty: inline for asset blocks, accordion for others
+    let deviceHtml = '';
+    if (isAsset) {
+      deviceHtml = device + qty;
+    } else if (block.device || block.qty) {
+      const summary = block.device ? `${block.device}${qty}` : qty;
+      deviceHtml = `<div class="tl-device-accordion"><span class="acc-toggle"><span class="acc-arrow">▸</span> Device/Qty: ${summary}</span><div class="acc-body">${block.device || '—'} ${qty}</div></div>`;
+    }
+
     el.innerHTML = `
       <div class="tl-handle tl-handle-top" data-edge="top"></div>
       <div class="tl-time">${block.start || '?'} – ${block.end || '?'}</div>
-      <div class="tl-label">${label}${device}${qty}</div>
+      <div class="tl-label">${label}${isAsset ? device + qty : ''}</div>
+      ${!isAsset && deviceHtml ? deviceHtml : ''}
       ${memo}
       <div class="tl-handle tl-handle-bottom" data-edge="bottom"></div>
     `;
+
+    // Accordion toggle
+    const acc = el.querySelector('.tl-device-accordion');
+    if (acc) acc.addEventListener('click', (e) => { e.stopPropagation(); acc.classList.toggle('open'); });
 
     // Click to edit
     el.addEventListener('click', (e) => {
@@ -153,13 +187,27 @@ const Timeline = (() => {
     e.stopPropagation();
     const startY = e.clientY;
     const origTime = edge === 'top' ? block.start : block.end;
+    const handle = e.target;
+    handle.classList.add('active');
+
+    // Create tooltip
+    const tip = document.createElement('div');
+    tip.className = 'tl-resize-tip';
+    tip.textContent = origTime;
+    document.body.appendChild(tip);
 
     function onMove(ev) {
       const dy = ev.clientY - startY;
-      const minutesDelta = Math.round(dy / 2) * 5; // 5-min increments, 2px per min
-      const newTime = addMinutes(origTime, minutesDelta);
+      const minutesDelta = Math.round(dy / 3) * 15; // 15-min snap, 3px per 15min
+      const rawMin = timeToMin(origTime) + minutesDelta;
+      // Snap to nearest 15
+      const snapped = Math.round(rawMin / 15) * 15;
+      const newTime = minToTime(snapped);
       if (edge === 'top') block.start = newTime;
       else block.end = newTime;
+      tip.textContent = newTime;
+      tip.style.left = ev.clientX + 12 + 'px';
+      tip.style.top = ev.clientY - 10 + 'px';
       updateBlock(block, false);
       render();
     }
@@ -167,6 +215,8 @@ const Timeline = (() => {
     function onUp() {
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+      handle.classList.remove('active');
+      tip.remove();
       pushHistory();
       notify();
     }
@@ -274,8 +324,19 @@ const Timeline = (() => {
     const el = document.createElement('div');
     el.className = 'tl-gap';
     el.textContent = `Gap: ${from} – ${to} (${timeDiff(from, to)}m unaccounted)`;
+    el.title = 'Double-click or right-click to add activity here';
+    el.style.cursor = 'pointer';
+    el.addEventListener('dblclick', () => { triggerSlotAdd(from, to); });
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); triggerSlotAdd(from, to); });
     return el;
   }
+
+  function triggerSlotAdd(start, end) {
+    if (onSlotAddCallback) onSlotAddCallback(start, end);
+  }
+
+  let onSlotAddCallback = null;
+  function onSlotAdd(cb) { onSlotAddCallback = cb; }
 
   function createOverlap(prevEnd, curStart) {
     const el = document.createElement('div');
@@ -308,5 +369,5 @@ const Timeline = (() => {
   function addMinutes(time, delta) { return minToTime(timeToMin(time) + delta); }
   function timeDiff(a, b) { return timeToMin(b) - timeToMin(a); }
 
-  return { init, setBlocks, getBlocks, addBlock, deleteBlock, undo, redo, render };
+  return { init, setBlocks, getBlocks, addBlock, deleteBlock, undo, redo, render, onSlotAdd };
 })();

@@ -40,6 +40,12 @@
     .setup-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .setup-back { background: none; border: none; color: var(--text-muted); cursor: pointer; margin-top: 0.5rem; }
     .setup-back:hover { color: var(--text-primary); }
+    .file-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    .file-opt {
+      padding: 0.5rem 1rem; background: var(--bg-surface); border: 1px solid var(--border);
+      border-radius: 6px; cursor: pointer; color: var(--text-primary); font-size: 0.9rem;
+    }
+    .file-opt:hover, .file-opt.selected { background: var(--accent); border-color: var(--accent); }
     .sheet-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
     .sheet-opt {
       padding: 0.5rem 1rem; background: var(--bg-surface); border: 1px solid var(--border);
@@ -50,6 +56,7 @@
     .schedule-grid label { font-size: 0.8rem; color: var(--text-muted); }
     .schedule-grid input { width: 100%; padding: 0.4rem; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); }
     .setup-error { color: var(--danger); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .setup-info { color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.5rem; }
   </style>
 </head>
 <body>
@@ -57,50 +64,42 @@
     <h1>☀ DayBuilder Setup</h1>
     <p class="sub">Let's get you configured.</p>
 
-    <!-- Step 1: User ID -->
+    <!-- Step 1: Username -->
     <div class="setup-step active" id="step1">
-      <label class="setup-label">Your user ID (login name)</label>
+      <label class="setup-label">Your username (login name)</label>
       <input class="setup-input" id="userId" placeholder="e.g. chrlsim" autofocus>
       <label class="setup-label">Display name</label>
       <input class="setup-input" id="displayName" placeholder="e.g. Charles">
       <button class="setup-btn" id="btn1">Next →</button>
     </div>
 
-    <!-- Step 2: Target workbook -->
+    <!-- Step 2: Manager's Tech Reports folder -->
     <div class="setup-step" id="step2">
-      <label class="setup-label">Target workbook (.xlsm)</label>
+      <label class="setup-label">Select your Manager's Tech Reports folder</label>
+      <p class="setup-info">This is where your weekly productivity workbook lives.</p>
       <div class="setup-row">
-        <input class="setup-input" id="targetWorkbook" placeholder="Browse or paste path..." readonly>
-        <button class="setup-browse" id="browseWb">Browse</button>
+        <input class="setup-input" id="reportsFolder" placeholder="Browse to folder..." readonly>
+        <button class="setup-browse" id="browseReports">Browse</button>
       </div>
-      <div class="setup-error" id="wbError"></div>
-      <button class="setup-btn" id="btn2">Next →</button>
+      <div class="setup-error" id="reportsError"></div>
+      <div class="file-list" id="fileList"></div>
+      <button class="setup-btn" id="btn2" disabled>Next →</button>
       <button class="setup-back" id="back2">← Back</button>
     </div>
 
     <!-- Step 3: Sheet select -->
     <div class="setup-step" id="step3">
       <label class="setup-label">Select your sheet</label>
-      <div class="sheet-list" id="sheetList">Loading sheets...</div>
+      <p class="setup-info" id="sheetInfo">Loading sheets...</p>
+      <div class="sheet-list" id="sheetList"></div>
       <div class="setup-error" id="sheetError"></div>
       <button class="setup-btn" id="btn3">Next →</button>
       <button class="setup-back" id="back3">← Back</button>
     </div>
 
-    <!-- Step 4: Sync target -->
+    <!-- Step 4: Schedule -->
     <div class="setup-step" id="step4">
-      <label class="setup-label">Sync target path (shared POST folder)</label>
-      <div class="setup-row">
-        <input class="setup-input" id="syncTarget" placeholder="Browse or paste path...">
-        <button class="setup-browse" id="browseSt">Browse</button>
-      </div>
-      <button class="setup-btn" id="btn4">Next →</button>
-      <button class="setup-back" id="back4">← Back</button>
-    </div>
-
-    <!-- Step 5: Schedule -->
-    <div class="setup-step" id="step5">
-      <label class="setup-label">Default schedule</label>
+      <label class="setup-label">Confirm your default schedule</label>
       <div class="schedule-grid">
         <div><label>Start time</label><input type="time" id="schedStart" value="07:00"></div>
         <div><label>End time</label><input type="time" id="schedEnd" value="16:30"></div>
@@ -108,8 +107,8 @@
         <div><label>Break (min)</label><input type="number" id="schedBreakMin" value="15" min="5" max="60"></div>
         <div><label>Lunch (min)</label><input type="number" id="schedLunch" value="30" min="15" max="60"></div>
       </div>
-      <button class="setup-btn" id="btn5">Finish Setup ✓</button>
-      <button class="setup-back" id="back5">← Back</button>
+      <button class="setup-btn" id="btn4">Finish Setup ✓</button>
+      <button class="setup-back" id="back4">← Back</button>
     </div>
 
     <!-- Done -->
@@ -120,14 +119,24 @@
   </div>
 
   <script>
-  (function() {
+  (async function() {
     const state = {};
+    let selectedFile = null;
     let selectedSheet = null;
+    let reportsPath = '';
 
     function show(id) {
       document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
     }
+
+    // Pre-fill username from config (set by Tier 1)
+    try {
+      const res = await fetch('/api/config');
+      const cfg = await res.json();
+      if (cfg.user && cfg.user.user_id) document.getElementById('userId').value = cfg.user.user_id;
+      if (cfg.user && cfg.user.user_display_name) document.getElementById('displayName').value = cfg.user.user_display_name;
+    } catch (e) {}
 
     // Step 1 → 2
     document.getElementById('btn1').onclick = () => {
@@ -138,45 +147,86 @@
       show('step2');
     };
 
-    // Browse workbook
-    document.getElementById('browseWb').onclick = async () => {
+    // Browse Tech Reports folder
+    document.getElementById('browseReports').onclick = async () => {
+      const startPath = 'W:\\Team Spaces\\RAD IT Engineering\\NA RAD IT Engineering';
       const res = await fetch('/api/browse', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({type: 'file', title: 'Select target workbook', filetypes: [['Excel', '*.xlsm *.xlsx']]})
+        body: JSON.stringify({type: 'folder', title: "Select your Manager's Tech Reports folder", initial_dir: startPath})
       });
       const data = await res.json();
-      if (data.path) document.getElementById('targetWorkbook').value = data.path;
+      if (!data.path) return;
+      reportsPath = data.path;
+      document.getElementById('reportsFolder').value = data.path;
+      // List workbook files
+      const fRes = await fetch('/api/browse/files', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({path: data.path})
+      });
+      const fData = await fRes.json();
+      const list = document.getElementById('fileList');
+      list.innerHTML = '';
+      if (!fData.files || fData.files.length === 0) {
+        document.getElementById('reportsError').textContent = 'No .xlsm/.xlsx files found in this folder.';
+        document.getElementById('btn2').disabled = true;
+        return;
+      }
+      document.getElementById('reportsError').textContent = '';
+      fData.files.forEach(name => {
+        const btn = document.createElement('button');
+        btn.className = 'file-opt';
+        btn.textContent = name;
+        btn.onclick = () => {
+          list.querySelectorAll('.file-opt').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedFile = name;
+          document.getElementById('btn2').disabled = false;
+        };
+        list.appendChild(btn);
+      });
     };
 
     // Step 2 → 3
     document.getElementById('btn2').onclick = async () => {
-      const wb = document.getElementById('targetWorkbook').value.trim();
-      if (!wb) { document.getElementById('wbError').textContent = 'Select a workbook'; return; }
-      state.target_workbook = wb;
-      document.getElementById('wbError').textContent = '';
+      if (!selectedFile) return;
+      const fullPath = reportsPath.replace(/\//g, '\\') + '\\' + selectedFile;
+      state.target_workbook = fullPath;
       show('step3');
       // Load sheets
-      const res = await fetch('/api/workbook/sheets?path=' + encodeURIComponent(wb));
+      document.getElementById('sheetInfo').textContent = 'Loading sheets...';
+      const res = await fetch('/api/workbook/sheets?path=' + encodeURIComponent(fullPath));
       const data = await res.json();
       const list = document.getElementById('sheetList');
-      if (data.error) { list.textContent = data.error; return; }
       list.innerHTML = '';
-      data.sheets.forEach(name => {
+      if (data.error) { document.getElementById('sheetInfo').textContent = data.error; return; }
+      // Auto-detect: if only 1 sheet or one matches username, auto-select
+      if (data.sheets.length === 1) {
+        selectedSheet = data.sheets[0];
+        document.getElementById('sheetInfo').textContent = `Auto-selected: ${selectedSheet}`;
         const btn = document.createElement('button');
-        btn.className = 'sheet-opt';
-        btn.textContent = name;
-        if (name.toLowerCase() === state.user_display_name.toLowerCase()) {
-          btn.classList.add('selected');
-          selectedSheet = name;
-        }
-        btn.onclick = () => {
-          list.querySelectorAll('.sheet-opt').forEach(b => b.classList.remove('selected'));
-          btn.classList.add('selected');
-          selectedSheet = name;
-        };
+        btn.className = 'sheet-opt selected';
+        btn.textContent = selectedSheet;
         list.appendChild(btn);
-      });
+      } else {
+        document.getElementById('sheetInfo').textContent = 'Multiple sheets found — pick yours:';
+        data.sheets.forEach(name => {
+          const btn = document.createElement('button');
+          btn.className = 'sheet-opt';
+          btn.textContent = name;
+          if (name.toLowerCase() === state.user_display_name.toLowerCase() || name.toLowerCase() === state.user_id.toLowerCase()) {
+            btn.classList.add('selected');
+            selectedSheet = name;
+          }
+          btn.onclick = () => {
+            list.querySelectorAll('.sheet-opt').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedSheet = name;
+          };
+          list.appendChild(btn);
+        });
+      }
     };
 
     // Step 3 → 4
@@ -186,25 +236,8 @@
       show('step4');
     };
 
-    // Browse sync target
-    document.getElementById('browseSt').onclick = async () => {
-      const res = await fetch('/api/browse', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({type: 'folder', title: 'Select sync target folder'})
-      });
-      const data = await res.json();
-      if (data.path) document.getElementById('syncTarget').value = data.path;
-    };
-
-    // Step 4 → 5
-    document.getElementById('btn4').onclick = () => {
-      state.sync_target = document.getElementById('syncTarget').value.trim() || null;
-      show('step5');
-    };
-
     // Finish
-    document.getElementById('btn5').onclick = async () => {
+    document.getElementById('btn4').onclick = async () => {
       state.schedule = {
         default_start: document.getElementById('schedStart').value,
         default_end: document.getElementById('schedEnd').value,
@@ -225,7 +258,6 @@
     document.getElementById('back2').onclick = () => show('step1');
     document.getElementById('back3').onclick = () => show('step2');
     document.getElementById('back4').onclick = () => show('step3');
-    document.getElementById('back5').onclick = () => show('step4');
   })();
   </script>
 </body>

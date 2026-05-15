@@ -14,9 +14,12 @@ const Guided = (() => {
     return config;
   }
 
-  function open(callback) {
+  let prefill = null;
+
+  function open(callback, pf) {
     onComplete = callback;
     state = {};
+    prefill = pf || null;
     showStep('type');
   }
 
@@ -137,18 +140,20 @@ const Guided = (() => {
   function renderTimeStep(el) {
     const blocks = Timeline.getBlocks();
     const lastEnd = blocks.length > 0 ? blocks[blocks.length - 1].end : '07:00';
+    const pfStart = (prefill && prefill.start) || lastEnd;
+    const pfEnd = (prefill && prefill.end) || addMin(pfStart, 60);
 
     el.innerHTML = `
       <h2>Time</h2>
       <div class="guided-time-options">
-        <label><input type="radio" name="tmode" value="duration" checked> About how long?</label>
-        <div class="time-duration">
+        <label><input type="radio" name="tmode" value="duration" ${prefill ? '' : 'checked'}> About how long?</label>
+        <div class="time-duration" ${prefill ? 'style="display:none"' : ''}>
           <input type="number" class="dur-h" value="1" min="0" max="12" style="width:3rem"> h
           <input type="number" class="dur-m" value="0" min="0" max="55" step="5" style="width:3rem"> m
         </div>
-        <label><input type="radio" name="tmode" value="range"> Started at / ended at</label>
-        <div class="time-range" style="display:none">
-          <input type="time" class="t-start" value="${lastEnd}"> → <input type="time" class="t-end" value="${addMin(lastEnd, 60)}">
+        <label><input type="radio" name="tmode" value="range" ${prefill ? 'checked' : ''}> Started at / ended at</label>
+        <div class="time-range" ${prefill ? '' : 'style="display:none"'}>
+          <input type="time" class="t-start" value="${pfStart}"> → <input type="time" class="t-end" value="${pfEnd}">
         </div>
         <label><input type="radio" name="tmode" value="after"> Place after previous block</label>
       </div>
@@ -170,13 +175,13 @@ const Guided = (() => {
       if (mode === 'duration') {
         const h = parseInt(el.querySelector('.dur-h').value) || 0;
         const m = parseInt(el.querySelector('.dur-m').value) || 0;
-        state.start = lastEnd;
-        state.end = addMin(lastEnd, h * 60 + m);
+        state.start = pfStart;
+        state.end = addMin(pfStart, h * 60 + m);
       } else if (mode === 'range') {
         state.start = el.querySelector('.t-start').value;
         state.end = el.querySelector('.t-end').value;
       } else {
-        state.start = lastEnd;
+        state.start = pfStart;
         state.end = null; // unset until resized
       }
       showStep('memo');
