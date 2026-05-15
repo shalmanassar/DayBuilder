@@ -94,3 +94,56 @@ These are the auto-scan targets. If neither exists, the folder picker appears.
 ---
 
 *Log created: 2026-05-15 16:42 — chrlsim + Kiro*
+
+---
+
+## What We Already Tried (DO NOT REPEAT)
+
+### Attempt 1: Original Tier 1 — Full tkinter setup before Flask
+- `tier1_setup()` showed a `simpledialog.askstring` for username, then `messagebox.showinfo`, then `filedialog.askdirectory`
+- **Problem:** User hated seeing ugly native dialogs before the pretty web UI. No indication the app had launched. Felt broken.
+- **Outcome:** Rejected by user.
+
+### Attempt 2: Remove ALL tkinter — pure web setup
+- Removed all native dialogs from `tier1_setup()`. Just did `user_id = os.getlogin()` and returned immediately.
+- Let Flask start with local `web/` fallback, browser opens to `/setup` for everything.
+- **Problem:** The exe doesn't HAVE a local `web/` folder. It lives on the user's desktop/downloads. Without finding the share drive first, there are NO web files to serve. App silently died (console=False in spec) or showed the "Cannot find web UI files" error.
+- **Outcome:** Dead on arrival if exe isn't next to `web/`.
+
+### Attempt 3: Check parent directory for web/
+- Added logic: if `BASE_DIR/web` doesn't exist, check `BASE_DIR.parent/web` (handles `dist/` subfolder case).
+- **Problem:** Only works during development when exe is in `dist/` inside the project. Doesn't help end users who have the exe on their desktop.
+- **Outcome:** Works for dev, useless for deployment.
+
+### Attempt 4: Hybrid — auto-scan known paths + fallback folder picker
+- `tier1_setup()` checks hardcoded `known_paths[]` for the share. If found, uses it silently. If not, shows ONE folder picker dialog.
+- Added `show_splash()` — a tkinter window that appears immediately saying "Starting server..."
+- **Problem (current state):**
+  1. Splash appears before share is found (misleading)
+  2. `user_id` from `os.getlogin()` isn't making it into config before Flask serves `/api/config` — setup.html shows empty username
+  3. The folder picker (when it appears) doesn't clearly tell the user what it's looking for
+- **Outcome:** Partially works — app DOES launch and show the web UI. But the three issues above remain.
+
+### Attempt 5: Saving user_id in all code paths
+- Moved `cfg.setdefault("user_id", user_id)` to run immediately after `tier1_setup()` returns, before any web_root branching.
+- Added `save_config(cfg)` in the fallback branch.
+- **Problem:** Still didn't pre-fill. Likely because `save_config()` is called but the config dict passed to `create_app(cfg, ...)` may be a different reference, OR the save happens but the web_root fallback branch has a logic error (there was leftover duplicate code that had to be cleaned up — possible the cleanup introduced a bug).
+- **Outcome:** Untested — this was the last build before end of day. The exe built successfully but the user_id issue persisted.
+
+### Key Insight: The Chicken-and-Egg Problem
+The exe needs web files to show the pretty UI. The web files are on the share drive. Finding the share drive might require user interaction. User interaction before the web UI means ugly native dialogs.
+
+**The only clean solutions are:**
+1. Auto-find the share silently (known paths) — works when VPN/WorkDocs is connected
+2. If auto-find fails, show a SINGLE clear native dialog (folder picker) with good verbiage, THEN launch the web UI
+3. The splash window should bridge the gap — show it immediately, update its text as things happen, close when browser opens
+
+### Files Modified During These Attempts
+- `bootstrap.py` — heavily modified `tier1_setup()`, `main()`, `BASE_DIR`, added `show_splash()`, `show_error()`
+- `web/setup.html` — added RMAJobLogger folder step (step 2), renumbered all steps to 5 total
+- `app.py` — added `/api/browse/files` endpoint, fixed `/api/shutdown`
+- `daybuilder.spec` — changed exe name to "RMA Job Tracking Launcher"
+
+---
+
+*Updated: 2026-05-15 16:43 — chrlsim + Kiro*
