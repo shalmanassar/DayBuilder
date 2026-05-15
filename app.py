@@ -92,4 +92,34 @@ def create_app(cfg, web_root, db_path, share_ok):
         conn.close()
         return jsonify([r[0] for r in rows])
 
+    # --- /api/post/{date} ---
+    @app.route("/api/post/<date_iso>", methods=["POST"])
+    def post_day_endpoint(date_iso):
+        import post
+        shared_path = os.path.join(web_root, "shared_config.json")
+        shared = {}
+        if os.path.isfile(shared_path):
+            with open(shared_path) as f:
+                shared = json.load(f)
+        result = post.post_day(date_iso, cfg, shared, db_path)
+        status_code = 200 if result.get('ok') else 400
+        return jsonify(result), status_code
+
+    # --- /api/open-target ---
+    @app.route("/api/open-target", methods=["POST"])
+    def open_target():
+        target = cfg.get("target_workbook")
+        if not target or not os.path.isfile(target):
+            return jsonify({"error": "Target workbook not found"}), 404
+        os.startfile(target)
+        return jsonify({"ok": True})
+
+    # --- /api/history ---
+    @app.route("/api/history", methods=["GET"])
+    def get_history():
+        from_date = request.args.get("from", "2000-01-01")
+        to_date = request.args.get("to", "2099-12-31")
+        rows = db.get_timelog_range(from_date, to_date, db_path)
+        return jsonify(rows)
+
     return app

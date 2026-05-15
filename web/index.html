@@ -26,11 +26,19 @@
 
   <footer>
     <span id="daySummary">TOT: 0h | Prod: 0h</span>
-    <button class="post-btn" id="btnPost">POST TO LOG</button>
+    <div>
+      <button class="post-btn" id="btnPost">POST TO LOG</button>
+      <button class="post-btn" id="btnReport" style="background:var(--accent)">Report</button>
+      <button class="post-btn" id="btnOpenTarget" style="background:var(--bg-surface)">Open Target</button>
+    </div>
   </footer>
+
+  <div id="validationContainer"></div>
 
   <script src="js/timeline.js"></script>
   <script src="js/guided.js"></script>
+  <script src="js/post.js"></script>
+  <script src="js/report.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
