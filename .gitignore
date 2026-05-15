@@ -1,0 +1,9 @@
+timelog.db
+test_timelog.db
+config.json
+backup/
+cache/
+*.exe
+__pycache__/
+*.pyc
+daybuilder.log*

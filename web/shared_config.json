@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "device_types": [
+    { "id": "ZebraMC", "display": "Zebra MC", "row": 7 },
+    { "id": "ZebraTC", "display": "Zebra TC", "row": 8 },
+    { "id": "PC", "display": "PC", "row": 9 },
+    { "id": "Avery6140", "display": "Avery 6140", "row": 10 },
+    { "id": "ZebraZD", "display": "Zebra ZD", "row": 11 },
+    { "id": "ZebraZQLn", "display": "Zebra ZQLn", "row": 12 },
+    { "id": "ZebraZT", "display": "Zebra ZT", "row": 13 },
+    { "id": "Honeywell", "display": "Honeywell", "row": 14 },
+    { "id": "PointMobile", "display": "Point Mobile", "row": 15 },
+    { "id": "ZebraRing", "display": "Zebra Ring", "row": 16 },
+    { "id": "RTV_Events", "display": "RTV Events", "row": 17 },
+    { "id": "Prov_Events", "display": "Prov Events", "row": 18 }
+  ],
+  "asset_paths": [
+    { "id": "RTV", "display": "RTV", "counts_toward": ["RTV_Events"] },
+    { "id": "Returns_Liq", "display": "Returns (Liq)", "counts_toward": [] },
+    { "id": "Returns_Decom", "display": "Returns (Decom)", "counts_toward": [] },
+    { "id": "RMA_PTS", "display": "RMA-PTS", "counts_toward": [] }
+  ],
+  "quotas": {
+    "ZebraMC": 10,
+    "ZebraTC": 18,
+    "PC": 1,
+    "Avery6140": 11,
+    "ZebraZD": 8,
+    "ZebraZQLn": 8,
+    "ZebraZT": 1,
+    "Honeywell": 10,
+    "PointMobile": 1,
+    "ZebraRing": 15,
+    "RTV_Events": 35,
+    "Prov_Events": 20
+  }
+}
