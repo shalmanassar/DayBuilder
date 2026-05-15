@@ -73,8 +73,23 @@
       <button class="setup-btn" id="btn1">Next →</button>
     </div>
 
-    <!-- Step 2: Manager's Tech Reports folder -->
+    <!-- Step 2: RMAJobLogger folder -->
     <div class="setup-step" id="step2">
+      <label class="setup-label">Select the RMAJobLogger folder on the shared drive</label>
+      <p class="setup-info">This lets the app find shared resources and sync your data.</p>
+      <div class="setup-row">
+        <input class="setup-input" id="rmaFolder" placeholder="Browse to RMAJobLogger folder..." readonly>
+        <button class="setup-browse" id="browseRma">Browse</button>
+      </div>
+      <p class="setup-info" id="rmaStatus"></p>
+      <div class="setup-error" id="rmaError"></div>
+      <button class="setup-btn" id="btn2">Next →</button>
+      <button class="setup-back" id="back2">← Back</button>
+      <button class="setup-back" id="skip2" style="margin-left:0.5rem;color:var(--warning)">Skip (offline/dev)</button>
+    </div>
+
+    <!-- Step 3: Manager's Tech Reports folder -->
+    <div class="setup-step" id="step3">
       <label class="setup-label">Select your Manager's Tech Reports folder</label>
       <p class="setup-info">This is where your weekly productivity workbook lives.</p>
       <div class="setup-row">
@@ -83,22 +98,22 @@
       </div>
       <div class="setup-error" id="reportsError"></div>
       <div class="file-list" id="fileList"></div>
-      <button class="setup-btn" id="btn2" disabled>Next →</button>
-      <button class="setup-back" id="back2">← Back</button>
+      <button class="setup-btn" id="btn3" disabled>Next →</button>
+      <button class="setup-back" id="back3">← Back</button>
     </div>
 
-    <!-- Step 3: Sheet select -->
-    <div class="setup-step" id="step3">
+    <!-- Step 4: Sheet select -->
+    <div class="setup-step" id="step4">
       <label class="setup-label">Select your sheet</label>
       <p class="setup-info" id="sheetInfo">Loading sheets...</p>
       <div class="sheet-list" id="sheetList"></div>
       <div class="setup-error" id="sheetError"></div>
-      <button class="setup-btn" id="btn3">Next →</button>
-      <button class="setup-back" id="back3">← Back</button>
+      <button class="setup-btn" id="btn4">Next →</button>
+      <button class="setup-back" id="back4">← Back</button>
     </div>
 
-    <!-- Step 4: Schedule -->
-    <div class="setup-step" id="step4">
+    <!-- Step 5: Schedule -->
+    <div class="setup-step" id="step5">
       <label class="setup-label">Confirm your default schedule</label>
       <div class="schedule-grid">
         <div><label>Start time</label><input type="time" id="schedStart" value="07:00"></div>
@@ -107,8 +122,8 @@
         <div><label>Break (min)</label><input type="number" id="schedBreakMin" value="15" min="5" max="60"></div>
         <div><label>Lunch (min)</label><input type="number" id="schedLunch" value="30" min="15" max="60"></div>
       </div>
-      <button class="setup-btn" id="btn4">Finish Setup ✓</button>
-      <button class="setup-back" id="back4">← Back</button>
+      <button class="setup-btn" id="btn5">Finish Setup ✓</button>
+      <button class="setup-back" id="back5">← Back</button>
     </div>
 
     <!-- Done -->
@@ -130,7 +145,7 @@
       document.getElementById(id).classList.add('active');
     }
 
-    // Pre-fill username from config (set by Tier 1)
+    // Pre-fill username from config (set by Tier 1 auto-detect)
     try {
       const res = await fetch('/api/config');
       const cfg = await res.json();
@@ -147,7 +162,37 @@
       show('step2');
     };
 
-    // Browse Tech Reports folder
+    // Step 2: RMAJobLogger folder
+    document.getElementById('browseRma').onclick = async () => {
+      const startPath = 'W:\\Team Spaces\\RAD IT Engineering\\NA RAD IT Engineering';
+      const res = await fetch('/api/browse', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({type: 'folder', title: 'Select the RMAJobLogger folder', initial_dir: startPath})
+      });
+      const data = await res.json();
+      if (!data.path) return;
+      document.getElementById('rmaFolder').value = data.path;
+      // Auto-discover
+      const webRoot = data.path.replace(/\//g, '\\') + '\\DayBuilder\\web';
+      const syncTarget = data.path.replace(/\//g, '\\') + '\\POST';
+      state.web_root = webRoot;
+      state.sync_target = syncTarget;
+      document.getElementById('rmaStatus').textContent = '✓ Found: ' + data.path;
+      document.getElementById('rmaError').textContent = '';
+    };
+
+    document.getElementById('btn2').onclick = () => {
+      if (!document.getElementById('rmaFolder').value && !state.web_root) {
+        document.getElementById('rmaError').textContent = 'Browse to select a folder, or click Skip.';
+        return;
+      }
+      show('step3');
+    };
+    document.getElementById('skip2').onclick = () => { show('step3'); };
+    document.getElementById('back2').onclick = () => show('step1');
+
+    // Step 3: Browse Tech Reports folder
     document.getElementById('browseReports').onclick = async () => {
       const startPath = 'W:\\Team Spaces\\RAD IT Engineering\\NA RAD IT Engineering';
       const res = await fetch('/api/browse', {
@@ -170,7 +215,7 @@
       list.innerHTML = '';
       if (!fData.files || fData.files.length === 0) {
         document.getElementById('reportsError').textContent = 'No .xlsm/.xlsx files found in this folder.';
-        document.getElementById('btn2').disabled = true;
+        document.getElementById('btn3').disabled = true;
         return;
       }
       document.getElementById('reportsError').textContent = '';
@@ -182,18 +227,18 @@
           list.querySelectorAll('.file-opt').forEach(b => b.classList.remove('selected'));
           btn.classList.add('selected');
           selectedFile = name;
-          document.getElementById('btn2').disabled = false;
+          document.getElementById('btn3').disabled = false;
         };
         list.appendChild(btn);
       });
     };
 
-    // Step 2 → 3
-    document.getElementById('btn2').onclick = async () => {
+    // Step 3 → 4
+    document.getElementById('btn3').onclick = async () => {
       if (!selectedFile) return;
       const fullPath = reportsPath.replace(/\//g, '\\') + '\\' + selectedFile;
       state.target_workbook = fullPath;
-      show('step3');
+      show('step4');
       // Load sheets
       document.getElementById('sheetInfo').textContent = 'Loading sheets...';
       const res = await fetch('/api/workbook/sheets?path=' + encodeURIComponent(fullPath));
@@ -201,10 +246,9 @@
       const list = document.getElementById('sheetList');
       list.innerHTML = '';
       if (data.error) { document.getElementById('sheetInfo').textContent = data.error; return; }
-      // Auto-detect: if only 1 sheet or one matches username, auto-select
       if (data.sheets.length === 1) {
         selectedSheet = data.sheets[0];
-        document.getElementById('sheetInfo').textContent = `Auto-selected: ${selectedSheet}`;
+        document.getElementById('sheetInfo').textContent = 'Auto-selected: ' + selectedSheet;
         const btn = document.createElement('button');
         btn.className = 'sheet-opt selected';
         btn.textContent = selectedSheet;
@@ -229,15 +273,15 @@
       }
     };
 
-    // Step 3 → 4
-    document.getElementById('btn3').onclick = () => {
+    // Step 4 → 5
+    document.getElementById('btn4').onclick = () => {
       if (!selectedSheet) { document.getElementById('sheetError').textContent = 'Select a sheet'; return; }
       state.target_sheet = selectedSheet;
-      show('step4');
+      show('step5');
     };
 
     // Finish
-    document.getElementById('btn4').onclick = async () => {
+    document.getElementById('btn5').onclick = async () => {
       state.schedule = {
         default_start: document.getElementById('schedStart').value,
         default_end: document.getElementById('schedEnd').value,
@@ -255,9 +299,9 @@
     };
 
     // Back buttons
-    document.getElementById('back2').onclick = () => show('step1');
     document.getElementById('back3').onclick = () => show('step2');
     document.getElementById('back4').onclick = () => show('step3');
+    document.getElementById('back5').onclick = () => show('step4');
   })();
   </script>
 </body>

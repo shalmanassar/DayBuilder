@@ -8,7 +8,11 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-BASE_DIR = Path(sys.executable).parent.resolve() if getattr(sys, 'frozen', False) else Path(__file__).parent.resolve()
+if getattr(sys, 'frozen', False):
+    # Exe can live anywhere. Working dir is next to the exe for local files (config, db, logs).
+    BASE_DIR = Path(sys.executable).parent.resolve()
+else:
+    BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_PATH = BASE_DIR / "config.json"
 LOG_PATH = BASE_DIR / "daybuilder.log"
 CACHE_DIR = BASE_DIR / "cache"
@@ -34,47 +38,74 @@ def save_config(cfg):
 
 
 def tier1_setup():
-    """Native dialog to select RMAJobLogger directory and pre-fill username."""
+    """Find the RMAJobLogger share. Try known paths first, then ask user."""
+    user_id = os.getlogin()
+
+    # Try known share paths automatically
+    known_paths = [
+        r"W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering\RAD1\RMAJobLogger",
+        r"W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering\RMAJobLogger",
+    ]
+    for p in known_paths:
+        web_root = os.path.join(p, "DayBuilder", "web")
+        if os.path.isdir(web_root):
+            sync_target = os.path.join(p, "POST")
+            return {"web_root": web_root, "sync_target": sync_target if os.path.isdir(sync_target) else None, "user_id": user_id}, user_id
+
+    # Not found — ask user with a native folder picker
     try:
         import tkinter as tk
-        from tkinter import filedialog, messagebox, simpledialog
+        from tkinter import filedialog
         root = tk.Tk()
         root.withdraw()
-
-        # Pre-fill username
-        default_user = os.getlogin()
-        user_id = simpledialog.askstring("DayBuilder Setup", "Your username (login):", initialvalue=default_user, parent=root)
-        if not user_id:
-            user_id = default_user
-
-        # Ask for RMAJobLogger directory
-        messagebox.showinfo("DayBuilder Setup", "Select the RMAJobLogger folder on the shared drive.")
-        # Try default start path
-        start_path = r"W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering"
-        if not os.path.isdir(start_path):
-            start_path = os.path.expanduser("~")
-        folder = filedialog.askdirectory(title="Select the RMAJobLogger folder", initialdir=start_path)
+        root.attributes("-topmost", True)
+        start = r"W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering"
+        if not os.path.isdir(start):
+            start = os.path.expanduser("~")
+        folder = filedialog.askdirectory(title="Select the RMAJobLogger folder on the shared drive", initialdir=start)
         root.destroy()
-
-        if not folder:
-            return None, user_id
-
-        # Auto-discover web_root and sync_target
-        web_root = os.path.join(folder, "DayBuilder", "web")
-        sync_target = os.path.join(folder, "POST")
-
-        # Validate
-        if not os.path.isdir(web_root):
-            logger.warning(f"DayBuilder/web not found under {folder}, falling back to local web/")
-            web_root = None
-        if not os.path.isdir(sync_target):
-            logger.warning(f"POST/ not found under {folder}")
-            sync_target = None
-
-        return {"web_root": web_root, "sync_target": sync_target, "user_id": user_id}, user_id
+        if folder:
+            web_root = os.path.join(folder, "DayBuilder", "web")
+            sync_target = os.path.join(folder, "POST")
+            if os.path.isdir(web_root):
+                return {"web_root": web_root, "sync_target": sync_target if os.path.isdir(sync_target) else None, "user_id": user_id}, user_id
     except Exception as e:
-        logger.error(f"Tier 1 setup failed: {e}")
-    return None, None
+        logger.error(f"Tier 1 browse failed: {e}")
+
+    return {"user_id": user_id}, user_id
+
+
+def show_splash():
+    """Show a visible splash window while the app starts."""
+    try:
+        import tkinter as tk
+        splash = tk.Tk()
+        splash.title("DayBuilder")
+        splash.configure(bg="#123d52")
+        splash.geometry("380x120+500+300")
+        splash.overrideredirect(False)
+        splash.attributes("-topmost", True)
+        tk.Label(splash, text="☀ RMA Job Tracking", font=("Segoe UI", 14, "bold"),
+                 fg="#e8f4f8", bg="#123d52").pack(pady=(20, 5))
+        tk.Label(splash, text="Starting server...", font=("Segoe UI", 10),
+                 fg="#8ab4c7", bg="#123d52").pack()
+        splash.update()
+        return splash
+    except Exception:
+        return None
+
+
+def show_error(msg):
+    """Show a native error dialog if something goes wrong."""
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("DayBuilder Error", msg)
+        root.destroy()
+    except Exception:
+        pass
 
 
 def resolve_web_root(cfg):
@@ -125,18 +156,19 @@ def cache_is_stale(web_root):
 
 def main():
     logger.info("DayBuilder starting.")
+    splash = show_splash()
     cfg = load_config()
 
     # Tier 1: ensure web_root is set
     web_root = resolve_web_root(cfg)
     if not web_root:
         result, user_id = tier1_setup()
+        if user_id:
+            cfg.setdefault("user_id", user_id)
         if result and result.get("web_root"):
             cfg["web_root"] = result["web_root"]
             if result.get("sync_target"):
                 cfg["sync_target"] = result["sync_target"]
-            if user_id:
-                cfg.setdefault("user_id", user_id)
             save_config(cfg)
             web_root = resolve_web_root(cfg)
         if not web_root:
@@ -145,11 +177,12 @@ def main():
             if local_web.is_dir():
                 web_root = str(local_web)
                 cfg["web_root"] = web_root
-                if user_id:
-                    cfg.setdefault("user_id", user_id)
                 save_config(cfg)
             else:
                 logger.error("No web_root available. Exiting.")
+                if splash:
+                    splash.destroy()
+                show_error("Cannot find web UI files.\n\nLooked in:\n" + str(BASE_DIR / "web") + "\n\nPlace the exe next to the web/ folder and try again.")
                 sys.exit(1)
 
     # Offline detection
@@ -160,6 +193,9 @@ def main():
             logger.warning("Share unreachable — serving from cache.")
         else:
             logger.error("Share unreachable and no cache. Exiting.")
+            if splash:
+                splash.destroy()
+            show_error("Cannot reach shared drive and no local cache exists.\n\nMake sure the exe is in the DayBuilder project folder (next to web/).")
             sys.exit(1)
     else:
         # Cache busting: only sync if version changed
@@ -189,6 +225,8 @@ def main():
 
     # Open browser with cache-busting version param
     webbrowser.open(f"http://localhost:{port}?v={version}")
+    if splash:
+        splash.destroy()
     logger.info(f"Serving on port {port}, web_root={serve_from}, version={version}")
     app.run(host="127.0.0.1", port=port, debug=False)
 
