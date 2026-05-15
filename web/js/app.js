@@ -46,24 +46,11 @@
     }
   } catch (e) { /* no draft yet */ }
 
-  // Add button — creates a new block with defaults
+  // Add button — opens guided entry modal
   btnAdd.addEventListener('click', () => {
-    const existing = Timeline.getBlocks();
-    const lastEnd = existing.length > 0 ? existing[existing.length - 1].end : '07:00';
-    Timeline.addBlock({
-      id: crypto.randomUUID(),
-      type: 'asset_processing',
-      device: null,
-      qty: null,
-      start: lastEnd || '07:00',
-      end: addMin(lastEnd || '07:00', 60),
-      memo: null
+    Guided.open((block) => {
+      Timeline.addBlock(block);
     });
   });
 
-  function addMin(time, mins) {
-    const [h, m] = time.split(':').map(Number);
-    const total = h * 60 + m + mins;
-    return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-  }
 })();

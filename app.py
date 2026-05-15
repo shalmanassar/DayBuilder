@@ -81,4 +81,15 @@ def create_app(cfg, web_root, db_path, share_ok):
             "offline_mode": not share_ok
         })
 
+    # --- /api/recents/{type} ---
+    @app.route("/api/recents/<job_type>", methods=["GET"])
+    def get_recents(job_type):
+        conn = db.get_db(db_path)
+        rows = conn.execute(
+            "SELECT DISTINCT memo FROM TimeLogTable WHERE job = ? AND memo IS NOT NULL AND memo != '' ORDER BY date DESC LIMIT 20",
+            (job_type,)
+        ).fetchall()
+        conn.close()
+        return jsonify([r[0] for r in rows])
+
     return app
