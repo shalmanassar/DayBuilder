@@ -618,57 +618,93 @@ Convention already in place: `{user_id}_timelog.db` per user.
 
 ## Build Phases
 
-### Phase 1: Foundation
-- [ ] Project structure on local + share
-- [ ] `bootstrap.py` — launches Flask, opens browser, handles offline detection
-- [ ] `config.json` schema + Tier 1 native setup (file dialog for web_root)
-- [ ] Flask API: CRUD for day blocks (`/api/day/{date}`, `/api/config`, `/api/status`)
-- [ ] SQLite layer: read/write TimeLogTable + DayDraft
-- [ ] Basic HTML shell with dark mode styling
-- **Done when:** bootstrap launches Flask, serves a page from the share, and can read/write blocks to SQLite via the API
+### Phase 1: Foundation ✅ COMPLETE
+- [x] Project structure on local + share
+- [x] `bootstrap.py` — launches Flask, opens browser, handles offline detection
+- [x] `config.json` schema + Tier 1 native setup (file dialog for web_root)
+- [x] Flask API: CRUD for day blocks (`/api/day/{date}`, `/api/config`, `/api/status`)
+- [x] SQLite layer: read/write TimeLogTable + DayDraft
+- [x] Basic HTML shell with dark mode styling
 
-### Phase 2: Timeline UI
-- [ ] Render blocks as a vertical timeline
-- [ ] Click to edit (popover)
-- [ ] Drag to resize (pointer events)
-- [ ] Drag to reorder
-- [ ] Add/delete blocks
-- [ ] Undo/redo (array state)
-- [ ] Gap/overlap visualization
-- **Done when:** blocks render as a draggable/resizable timeline and changes persist via API
+### Phase 2: Timeline UI ✅ COMPLETE
+- [x] Render blocks as a vertical timeline
+- [x] Click to edit (popover)
+- [x] Drag to resize (pointer events)
+- [x] Drag to reorder
+- [x] Add/delete blocks
+- [x] Undo/redo (array state)
+- [x] Gap/overlap visualization
 
-### Phase 3: Guided Entry
-- [ ] "Add Activity" modal flow
-- [ ] Asset Processing path (path → device → qty → time → memo)
-- [ ] Project/Admin/Meeting with recent-items list (from `/api/recents`)
-- [ ] Break/Lunch/5S quick-add
-- [ ] Optional device+qty attachment on any task
-- **Done when:** a user can add any task type through the guided flow and it appears on the timeline
+### Phase 3: Guided Entry ✅ COMPLETE
+- [x] "Add Activity" modal flow
+- [x] Asset Processing path (path → device → qty → time → memo)
+- [x] Project/Admin/Meeting with recent-items list (from `/api/recents`)
+- [x] Break/Lunch/5S quick-add
+- [x] Optional device+qty attachment on any task
 
-### Phase 4: Post & Report
-- [ ] Pre-post validation UI
-- [ ] openpyxl write to target workbook (with backup, retry, error handling)
-- [ ] Flatten blocks → TimeLogTable rows on post (with re-post delete+reinsert)
-- [ ] Shared DB sync after post
-- [ ] "Open Target" button
-- [ ] Report view (brief-style summary)
-- [ ] PDF/clipboard export
-- **Done when:** POST writes correct values to the target workbook and flattens to TimeLogTable
+### Phase 4: Post & Report ✅ COMPLETE
+- [x] Pre-post validation UI
+- [x] openpyxl write to target workbook (with backup, retry, error handling)
+- [x] Flatten blocks → TimeLogTable rows on post (with re-post delete+reinsert)
+- [x] Shared DB sync after post
+- [x] "Open Target" button
+- [x] Report view (brief-style summary)
+- [x] Clipboard export (via report modal)
 
-### Phase 5: Polish & Deploy
-- [ ] Tier 2 web-based setup wizard
-- [ ] Historical day navigation (date picker)
-- [ ] Offline mode (serve from cache, limited functionality)
-- [ ] Cache busting (version.json comparison)
-- [ ] Logging (file rotation, debug toggle)
-- [ ] Settings panel (⚙)
+### Phase 5: Polish & Deploy ← START HERE
+- [ ] Tier 2 web-based setup wizard (`/setup` route — user ID, target workbook browse, sheet select, schedule)
+- [ ] Historical day navigation (date picker in header, load any past day)
+- [ ] Offline mode (serve from cache, limited functionality, banner)
+- [ ] Cache busting (version.json comparison on launch, `?v=` param)
+- [ ] Logging (file rotation already in bootstrap.py — add debug toggle in Settings)
+- [ ] Settings panel (⚙) — change target workbook, sheet, schedule, sync path, view version, reset options
 - [ ] Exit button in UI — calls `/api/shutdown`, Flask shuts down gracefully, syncs dirty DB, releases memory
 - [ ] Version number displayed in Settings/Help screen (reads from `version.json`)
-- [ ] GitHub repo — init, .gitignore (exclude timelog.db, config.json, backup/, cache/, *.exe), push
+- [ ] GitHub repo — ✅ DONE (https://github.com/shalmanassar/DayBuilder)
 - [ ] PyInstaller build for bootstrap.exe
 - [ ] Deploy web files to share
 - [ ] Test with second user (different target workbook)
 - **Done when:** a second user on a different machine can complete full setup and post to their own target
+
+---
+
+## Current File Map (for new agents)
+
+```
+C:\localspace_laptop\DayBuilder\
+├── bootstrap.py        ← Entry point: logging, config load, Tier 1 setup (tkinter), offline detect, cache sync, starts Flask
+├── app.py              ← Flask app factory. Routes: /, /api/config, /api/day/{date}, /api/status, /api/recents/{type}, /api/post/{date}, /api/open-target, /api/history
+├── db.py               ← SQLite layer: init_db, get/save/delete_draft, get/insert/delete timelog rows, date format helpers
+├── post.py             ← Post logic: validate_blocks, flatten_blocks, aggregate_productivity, calculate_hours, build_comment, backup_workbook, write_workbook, sync_db, post_day
+├── .gitignore          ← Excludes: timelog.db, config.json, backup/, cache/, *.exe, __pycache__, logs
+├── README.md
+├── buildpath.md        ← This file (full spec)
+├── verify_phase*.py    ← Test scripts for each phase
+├── archive/            ← Design docs (reference only, do not modify)
+├── bridereporter4/     ← Legacy VBA source (reference only, do not modify)
+├── backup/             ← Auto-created on post (workbook backups)
+├── cache/              ← Auto-created on launch (offline fallback copy of web/)
+└── web/                ← Simulated shared folder (serves as Flask static root)
+    ├── index.html      ← SPA shell: header, timeline container, footer with POST/Report/Open Target
+    ├── shared_config.json  ← Device types, asset paths, quotas (all users read this)
+    ├── version.json    ← Cache-busting version tag
+    ├── css/app.css     ← RADscout dark palette, timeline blocks, guided modal, validation, report, toast styles
+    ├── js/app.js       ← Main wiring: loads status, inits Timeline, binds Guided/Post/Report buttons, auto-save
+    ├── js/timeline.js  ← Timeline engine: render, edit popover, drag resize/reorder, undo/redo, gap/overlap
+    ├── js/guided.js    ← Guided entry modal: type→path→device→qty→time→memo flow, recents, quick-add
+    ├── js/post.js      ← Client-side validation, POST button logic, toast notifications
+    ├── js/report.js    ← Report modal: productivity table, time breakdown, clipboard copy
+    └── assets/         ← (empty, for future icons/fonts)
+```
+
+### Key implementation notes for Phase 5:
+- `bootstrap.py` already has: RotatingFileHandler (5MB x 5 files), `--debug` flag, tkinter Tier 1 setup, cache sync via shutil.copytree
+- `app.py` serves static files from `web_root` via `send_from_directory`; the `/` route serves `index.html`
+- Config is loaded once at startup into a dict (`cfg`) passed to `create_app()`; updates write to `config.json` via `/api/config POST`
+- The `web/` folder is the local dev stand-in for the network share; `web_root` in config points to it
+- Flask runs on port 5150 (configurable in config.json)
+- All JS modules are IIFEs exposing a global object (Timeline, Guided, Post, Report)
+- No build tools, no npm — vanilla JS served directly from the share
 
 ---
 
