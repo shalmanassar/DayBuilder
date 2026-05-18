@@ -33,5 +33,5 @@ exe = EXE(
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
-    icon=None,
+    icon='JobLogICON.ico',
 )
