@@ -317,6 +317,23 @@ def create_app(cfg, web_root, db_path, share_ok):
         sync.sync_user_db(cfg, db_path)
         return jsonify({"ok": True})
 
+    # --- /api/rates ---
+    @app.route("/api/rates", methods=["POST"])
+    def get_rates():
+        import post
+        data = request.get_json(force=True)
+        blocks = data.get("blocks", [])
+        wr = _get_web_root()
+        shared = {}
+        if wr:
+            shared_path = os.path.join(wr, "shared_config.json")
+            if os.path.isfile(shared_path):
+                with open(shared_path) as f:
+                    shared = json.load(f)
+        rates = post.calculate_rates(blocks, shared)
+        work_hrs, nonwork_hrs = post.calculate_hours(blocks)
+        return jsonify({"rates": rates, "work_hours": work_hrs, "nonwork_hours": nonwork_hrs})
+
     # --- /api/sync ---
     @app.route("/api/sync", methods=["POST"])
     def sync_to_master():

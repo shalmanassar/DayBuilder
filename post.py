@@ -142,6 +142,43 @@ def calculate_hours(blocks):
     return round(work_mins / 60, 2), round(nonwork_mins / 60, 2)
 
 
+def calculate_rates(blocks, shared_config):
+    """Calculate rate per device type: qty/production_hours vs quota.
+    Returns list of {device, display, qty, prod_hours, rate, quota, pct}."""
+    quotas = shared_config.get('quotas', {})
+    device_types = {d['id']: d['display'] for d in shared_config.get('device_types', [])}
+
+    # Production hours = total work time (excludes breaks/lunch/clock markers)
+    work_mins = 0
+    for b in blocks:
+        dur = _duration(b)
+        if b.get('type') not in ('break', 'lunch', 'clock_in', 'clock_out') and dur > 0:
+            work_mins += dur
+    prod_hours = work_mins / 60 if work_mins > 0 else 0
+
+    # Aggregate qty per device
+    counts = aggregate_productivity(blocks, shared_config)
+
+    results = []
+    for dev_id, qty in counts.items():
+        if qty <= 0:
+            continue
+        quota = quotas.get(dev_id, 0)
+        rate = qty / prod_hours if prod_hours > 0 else 0
+        pct = (rate / quota * 100) if quota > 0 else 0
+        results.append({
+            'device': dev_id,
+            'display': device_types.get(dev_id, dev_id),
+            'qty': qty,
+            'prod_hours': round(prod_hours, 2),
+            'rate': round(rate, 2),
+            'quota': quota,
+            'pct': round(pct, 1)
+        })
+
+    return results
+
+
 def build_comment(blocks):
     """Build day comment from block memos."""
     parts = []
