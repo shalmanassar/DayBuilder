@@ -35,6 +35,11 @@ def validate_blocks(blocks):
     if 'clock_out' not in types:
         hard.append('Clock out time not set')
 
+    # Must have at least one work block (not just template placeholders)
+    work_types = [t for t in types if t not in ('clock_in', 'clock_out', 'break', 'lunch')]
+    if not work_types:
+        hard.append('No work activities logged — add at least one activity before posting')
+
     # Check all times explicit
     for b in blocks:
         if not b.get('start') or (b.get('type') not in ('clock_in', 'clock_out') and not b.get('end')):
@@ -56,12 +61,12 @@ def validate_blocks(blocks):
     elif any(_duration(b) < 30 for b in lunches):
         soft.append('Lunch is shorter than 30 minutes')
 
-    # Gaps
+    # Gaps — unaccounted time blocks posting
     sorted_blocks = sorted([b for b in blocks if b.get('start') and b.get('end')],
                            key=lambda b: b['start'])
     for i in range(1, len(sorted_blocks)):
         if sorted_blocks[i]['start'] > sorted_blocks[i-1]['end']:
-            soft.append(f"Gap: {sorted_blocks[i-1]['end']} – {sorted_blocks[i]['start']}")
+            hard.append(f"Unaccounted time: {sorted_blocks[i-1]['end']} – {sorted_blocks[i]['start']}")
 
     return {'hard': hard, 'soft': soft}
 
