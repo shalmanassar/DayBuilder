@@ -1,5 +1,5 @@
 /* DayBuilder — timeline.js
-   Proportional vertical timeline: 1 row = 15min, compact breaks, drag-move, resize-push */
+   Graduated hour column, color-coded blocks, 5-min snap, resize-push */
 
 const Timeline = (() => {
   let blocks = [];
@@ -9,9 +9,10 @@ const Timeline = (() => {
   let onChangeCallback = null;
   let onSlotAddCallback = null;
 
-  const ROW_H = 38; // px per 15-min row
-  const COMPACT_H = 28; // px for compact (break/lunch) rows
-  const MARKER_H = 24; // px for clock markers
+  const PX_PER_MIN = 1.8; // pixels per minute
+  const SNAP = 5; // snap to nearest 5 minutes
+  const DAY_START = 7 * 60; // 7:00 AM
+  const DAY_END = 17 * 60; // 5:00 PM
 
   const TYPE_COLORS = {
     asset_processing: '#3498db', project: '#9b59b6', admin: '#e67e22',
@@ -19,7 +20,11 @@ const Timeline = (() => {
     break: '#7f8c8d', lunch: '#95a5a6', clock_in: '#27ae60', clock_out: '#e74c3c'
   };
 
-  const COMPACT_TYPES = ['break', 'lunch'];
+  const TYPE_LABELS = {
+    asset_processing: 'Asset Processing', project: 'Project', admin: 'Admin',
+    meeting: 'Meeting', '5s': '5S', learning: 'Learning',
+    break: 'Break', lunch: 'Lunch', clock_in: 'Clock In', clock_out: 'Clock Out'
+  };
 
   function init(el, onChange) {
     container = el;
@@ -53,136 +58,139 @@ const Timeline = (() => {
   function render() {
     if (!container) return;
     container.innerHTML = '';
-    container.style.position = 'relative';
 
     if (blocks.length === 0) {
       container.innerHTML = '<div class="timeline-empty">No blocks yet. Add an activity to start building your day.</div>';
       return;
     }
 
-    const sorted = [...blocks].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    // Build layout: hour gutter + blocks area
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tl-wrapper';
 
-    // Render sequentially with proportional heights
-    for (let i = 0; i < sorted.length; i++) {
-      // Gap before this block
-      if (i > 0) {
-        const prev = sorted[i - 1];
-        const prevEnd = isMarker(prev) ? prev.start : prev.end;
-        const curStart = sorted[i].start;
-        if (prevEnd && curStart && prevEnd < curStart) {
-          container.appendChild(createGap(prevEnd, curStart));
-        } else if (prevEnd && curStart && prevEnd > curStart) {
-          container.appendChild(createOverlap(prevEnd, curStart));
-        }
-      }
-      container.appendChild(createBlockEl(sorted[i]));
+    const gutter = document.createElement('div');
+    gutter.className = 'tl-gutter';
+
+    const track = document.createElement('div');
+    track.className = 'tl-track';
+
+    // Determine time range
+    const sorted = [...blocks].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    let minTime = DAY_START, maxTime = DAY_END;
+    sorted.forEach(b => {
+      const s = timeToMin(b.start);
+      const e = timeToMin(b.end) || s;
+      if (s < minTime) minTime = s;
+      if (e > maxTime) maxTime = e;
+    });
+    // Round to hour boundaries
+    minTime = Math.floor(minTime / 60) * 60;
+    maxTime = Math.ceil(maxTime / 60) * 60;
+    const totalMin = maxTime - minTime;
+    const totalH = totalMin * PX_PER_MIN;
+
+    track.style.height = totalH + 'px';
+    track.style.position = 'relative';
+
+    // Hour gutter lines
+    for (let m = minTime; m <= maxTime; m += 60) {
+      const hourEl = document.createElement('div');
+      hourEl.className = 'tl-hour';
+      hourEl.style.top = ((m - minTime) * PX_PER_MIN) + 'px';
+      const h = m / 60;
+      const ampm = h >= 12 ? 'pm' : 'am';
+      const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      hourEl.textContent = `${h12} ${ampm}`;
+      gutter.appendChild(hourEl);
+
+      // Grid line on track
+      const line = document.createElement('div');
+      line.className = 'tl-gridline';
+      line.style.top = ((m - minTime) * PX_PER_MIN) + 'px';
+      track.appendChild(line);
     }
+
+    // Render blocks positioned absolutely
+    sorted.forEach(b => {
+      const el = createBlockEl(b, minTime);
+      track.appendChild(el);
+    });
+
+    // Render gaps
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      const prevEnd = isMarker(prev) ? prev.start : prev.end;
+      if (prevEnd && cur.start && prevEnd < cur.start) {
+        const gapEl = createGap(prevEnd, cur.start, minTime);
+        track.appendChild(gapEl);
+      }
+    }
+
+    wrapper.appendChild(gutter);
+    wrapper.appendChild(track);
+    container.appendChild(wrapper);
   }
 
   function isMarker(b) { return b.type === 'clock_in' || b.type === 'clock_out'; }
-  function isCompact(b) { return COMPACT_TYPES.includes(b.type); }
 
-  function blockHeight(block) {
-    if (isMarker(block)) return MARKER_H;
-    if (!block.start || !block.end) return ROW_H;
-    const mins = timeToMin(block.end) - timeToMin(block.start);
-    if (isCompact(block)) return COMPACT_H;
-    return Math.max(ROW_H, Math.round((mins / 15) * ROW_H));
-  }
-
-  function createBlockEl(block) {
+  function createBlockEl(block, minTime) {
     const el = document.createElement('div');
     el.className = 'tl-block';
     el.dataset.id = block.id;
     const color = TYPE_COLORS[block.type] || '#3498db';
+    const label = TYPE_LABELS[block.type] || block.type;
+    const startMin = timeToMin(block.start) || 0;
+    const endMin = timeToMin(block.end) || startMin;
+
+    const top = (startMin - minTime) * PX_PER_MIN;
 
     if (isMarker(block)) {
       el.classList.add('tl-marker');
-      if (block.type === 'clock_out') el.classList.add('clock-out');
-      const label = block.type === 'clock_in' ? 'CLOCK IN' : 'CLOCK OUT';
-      el.innerHTML = `<span class="tl-time">${fmtTime(block.start)}</span><span class="tl-label">${label}</span>`;
-      el.style.height = MARKER_H + 'px';
+      el.style.top = top + 'px';
+      el.style.borderColor = color;
+      el.innerHTML = `<span class="tl-marker-time">${fmtTime(block.start)}</span><span class="tl-marker-label">${label}</span>`;
       el.addEventListener('click', () => showPopover(block, el));
       return el;
     }
 
-    // Proportional height
-    const h = blockHeight(block);
-    el.style.height = h + 'px';
+    const height = Math.max(20, (endMin - startMin) * PX_PER_MIN);
+    el.style.top = top + 'px';
+    el.style.height = height + 'px';
+    el.style.backgroundColor = color + '22';
     el.style.borderLeftColor = color;
 
-    if (isCompact(block)) {
-      // Single-line compact row
-      el.classList.add('tl-compact');
-      const label = block.type.charAt(0).toUpperCase() + block.type.slice(1);
-      const memo = block.memo ? block.memo : '';
-      el.innerHTML = `
-        <div class="tl-compact-row">
-          <span class="tl-label">${label}</span>
-          <span class="tl-time">${fmtTime(block.start)} – ${fmtTime(block.end)}</span>
-          <span class="tl-memo">${memo}</span>
-        </div>
-        <div class="tl-handle tl-handle-top" data-edge="top"></div>
-        <div class="tl-handle tl-handle-bottom" data-edge="bottom"></div>
-      `;
-    } else {
-      // Full block
-      const label = block.type ? block.type.replace(/_/g, ' ') : 'block';
-      const isAsset = block.type === 'asset_processing';
-      const device = block.device ? ` · ${block.device}` : '';
-      const qty = block.qty ? ` x${block.qty}` : '';
-      const memo = block.memo ? `<div class="tl-memo">${block.memo}</div>` : '';
+    const memo = block.memo ? ` — ${block.memo}` : '';
+    const device = block.device ? ` · ${block.device}` : '';
+    const qty = block.qty ? ` x${block.qty}` : '';
 
-      let deviceHtml = '';
-      if (!isAsset && (block.device || block.qty)) {
-        const summary = block.device ? `${block.device}${qty}` : qty;
-        deviceHtml = `<div class="tl-device-accordion"><span class="acc-toggle"><span class="acc-arrow">▸</span> Device/Qty: ${summary}</span><div class="acc-body">${block.device || '—'} ${qty}</div></div>`;
-      }
+    el.innerHTML = `
+      <div class="tl-block-header">
+        <span class="tl-block-label">${label}${device}${qty}</span>
+        <span class="tl-block-time">${fmtTime(block.start)} – ${fmtTime(block.end)}</span>
+      </div>
+      ${memo ? `<div class="tl-block-memo">${memo}</div>` : ''}
+      <div class="tl-handle tl-handle-top" data-edge="top"></div>
+      <div class="tl-handle tl-handle-bottom" data-edge="bottom"></div>
+    `;
 
-      el.innerHTML = `
-        <div class="tl-handle tl-handle-top" data-edge="top"></div>
-        <div class="tl-time">${fmtTime(block.start)} – ${fmtTime(block.end)}</div>
-        <div class="tl-label">${label}${isAsset ? device + qty : ''}</div>
-        ${deviceHtml}
-        ${memo}
-        <div class="tl-handle tl-handle-bottom" data-edge="bottom"></div>
-      `;
-    }
-
-    // Accordion toggle
-    const acc = el.querySelector('.tl-device-accordion');
-    if (acc) acc.addEventListener('click', (e) => { e.stopPropagation(); acc.classList.toggle('open'); });
-
-    // Click to edit
     el.addEventListener('click', (e) => {
       if (!e.target.classList.contains('tl-handle')) showPopover(block, el);
     });
 
-    // Drag to move (visual feedback: ghost follows cursor)
+    // Drag
     el.setAttribute('draggable', 'true');
     el.addEventListener('dragstart', (e) => {
       if (e.target.classList.contains('tl-handle')) { e.preventDefault(); return; }
       e.dataTransfer.setData('text/plain', block.id);
-      e.dataTransfer.effectAllowed = 'move';
       el.classList.add('dragging');
-      // Create drag image
-      const ghost = el.cloneNode(true);
-      ghost.style.opacity = '0.7';
-      ghost.style.position = 'absolute';
-      ghost.style.top = '-9999px';
-      ghost.style.width = el.offsetWidth + 'px';
-      document.body.appendChild(ghost);
-      e.dataTransfer.setDragImage(ghost, e.offsetX, e.offsetY);
-      setTimeout(() => ghost.remove(), 0);
     });
     el.addEventListener('dragend', () => el.classList.remove('dragging'));
     el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('drag-over'); });
     el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
     el.addEventListener('drop', (e) => {
-      e.preventDefault();
-      el.classList.remove('drag-over');
-      const fromId = e.dataTransfer.getData('text/plain');
-      reorder(fromId, block.id);
+      e.preventDefault(); el.classList.remove('drag-over');
+      reorder(e.dataTransfer.getData('text/plain'), block.id);
     });
 
     // Resize handles
@@ -193,56 +201,56 @@ const Timeline = (() => {
     return el;
   }
 
-  // --- Resize with push ---
+  // --- Resize (5-min snap, tooltip follows cursor, removed on pointerup) ---
   function startResize(e, block, edge) {
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
     const origTime = edge === 'top' ? block.start : block.end;
     const handle = e.target;
-    handle.classList.add('active');
     handle.setPointerCapture(e.pointerId);
 
     const tip = document.createElement('div');
     tip.className = 'tl-resize-tip';
-    tip.textContent = origTime;
+    tip.textContent = fmtTime(origTime);
     document.body.appendChild(tip);
+    tip.style.left = e.clientX + 12 + 'px';
+    tip.style.top = e.clientY - 10 + 'px';
 
     const sorted = [...blocks].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
     const blockIdx = sorted.findIndex(b => b.id === block.id);
 
     function onMove(ev) {
       const dy = ev.clientY - startY;
-      const minutesDelta = Math.round(dy / (ROW_H / 15)) * 15;
+      const minutesDelta = Math.round(dy / PX_PER_MIN / SNAP) * SNAP;
       const rawMin = timeToMin(origTime) + minutesDelta;
-      const snapped = Math.round(rawMin / 15) * 15;
-      const newTime = minToTime(Math.max(0, Math.min(1439, snapped)));
+      const snapped = Math.round(rawMin / SNAP) * SNAP;
+      const clamped = Math.max(0, Math.min(1439, snapped));
+      const newTime = minToTime(clamped);
 
       if (edge === 'top') {
         block.start = newTime;
-        // Push previous block's end
         if (blockIdx > 0) {
           const prev = sorted[blockIdx - 1];
-          if (!isMarker(prev) && prev.end && timeToMin(prev.end) > snapped) {
+          if (!isMarker(prev) && prev.end && timeToMin(prev.end) > clamped) {
             prev.end = newTime;
             updateBlock(prev, false);
           }
         }
       } else {
         block.end = newTime;
-        // Push next block's start
         if (blockIdx < sorted.length - 1) {
           const next = sorted[blockIdx + 1];
-          if (!isMarker(next) && next.start && timeToMin(next.start) < snapped) {
+          if (!isMarker(next) && next.start && timeToMin(next.start) < clamped) {
             const dur = timeToMin(next.end) - timeToMin(next.start);
             next.start = newTime;
-            next.end = minToTime(snapped + dur);
+            next.end = minToTime(clamped + dur);
             updateBlock(next, false);
           }
         }
       }
 
-      tip.textContent = newTime;
+      tip.textContent = fmtTime(newTime);
       tip.style.left = ev.clientX + 12 + 'px';
       tip.style.top = ev.clientY - 10 + 'px';
       updateBlock(block, false);
@@ -252,7 +260,6 @@ const Timeline = (() => {
     function onUp() {
       handle.removeEventListener('pointermove', onMove);
       handle.removeEventListener('pointerup', onUp);
-      handle.classList.remove('active');
       tip.remove();
       pushHistory();
       notify();
@@ -268,46 +275,24 @@ const Timeline = (() => {
     const fromIdx = blocks.findIndex(b => b.id === fromId);
     const toIdx = blocks.findIndex(b => b.id === toId);
     if (fromIdx < 0 || toIdx < 0) return;
-
     const [moved] = blocks.splice(fromIdx, 1);
     blocks.splice(toIdx, 0, moved);
-
-    // Auto-adjust times: cascade from drop point
-    const sorted = [...blocks].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const cur = sorted[i];
-      if (isMarker(prev) || isMarker(cur)) continue;
-      const prevEnd = prev.end;
-      if (prevEnd && cur.start && timeToMin(cur.start) < timeToMin(prevEnd)) {
-        const dur = timeToMin(cur.end) - timeToMin(cur.start);
-        cur.start = prevEnd;
-        cur.end = minToTime(timeToMin(prevEnd) + dur);
-      }
-    }
-
-    pushHistory();
-    render();
-    notify();
+    pushHistory(); render(); notify();
   }
 
   // --- Add / Delete ---
   function addBlock(block) {
     if (!block.id) block.id = crypto.randomUUID();
     blocks.push(block);
-    pushHistory();
-    render();
-    notify();
+    pushHistory(); render(); notify();
   }
 
   function deleteBlock(id) {
     blocks = blocks.filter(b => b.id !== id);
-    pushHistory();
-    render();
-    notify();
+    pushHistory(); render(); notify();
   }
 
-  // --- Edit Popover ---
+  // --- Popover ---
   function showPopover(block, anchorEl) {
     closePopover();
     const pop = document.createElement('div');
@@ -315,13 +300,12 @@ const Timeline = (() => {
     const isM = isMarker(block);
     pop.innerHTML = `
       <label>Type<select class="pop-type">
-        ${['asset_processing','project','admin','meeting','5s','learning','break','lunch','clock_in','clock_out']
-          .map(t => `<option value="${t}" ${t===block.type?'selected':''}>${t.replace(/_/g,' ')}</option>`).join('')}
+        ${Object.entries(TYPE_LABELS).map(([k,v]) => `<option value="${k}" ${k===block.type?'selected':''}>${v}</option>`).join('')}
       </select></label>
       ${!isM ? `<label>Device<input class="pop-device" value="${block.device||''}"></label>
       <label>Qty<input class="pop-qty" type="number" value="${block.qty||''}"></label>` : ''}
-      <label>Start<input class="pop-start" type="time" value="${block.start||''}"></label>
-      ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}"></label>` : ''}
+      <label>Start<input class="pop-start" type="time" value="${block.start||''}" step="300"></label>
+      ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}" step="300"></label>` : ''}
       <label>Memo<input class="pop-memo" value="${block.memo||''}"></label>
       <div class="pop-actions">
         <button class="pop-save">Save</button>
@@ -329,7 +313,6 @@ const Timeline = (() => {
         <button class="pop-close">Cancel</button>
       </div>
     `;
-
     pop.querySelector('.pop-save').onclick = () => {
       block.type = pop.querySelector('.pop-type').value;
       block.device = pop.querySelector('.pop-device')?.value || null;
@@ -337,47 +320,39 @@ const Timeline = (() => {
       block.start = pop.querySelector('.pop-start').value || null;
       block.end = pop.querySelector('.pop-end')?.value || null;
       block.memo = pop.querySelector('.pop-memo').value || null;
-      updateBlock(block, true);
-      closePopover();
+      updateBlock(block, true); closePopover();
     };
     pop.querySelector('.pop-delete').onclick = () => { deleteBlock(block.id); closePopover(); };
     pop.querySelector('.pop-close').onclick = closePopover;
-
     container.appendChild(pop);
   }
 
   function closePopover() {
-    const existing = container.querySelector('.tl-popover');
-    if (existing) existing.remove();
+    const p = container.querySelector('.tl-popover');
+    if (p) p.remove();
   }
 
-  // --- Context Menu ---
+  // --- Context menu ---
   function onContextMenu(e) {
     const blockEl = e.target.closest('.tl-block');
     if (!blockEl) return;
     e.preventDefault();
-    const id = blockEl.dataset.id;
-    if (confirm('Delete this block?')) deleteBlock(id);
+    if (confirm('Delete this block?')) deleteBlock(blockEl.dataset.id);
   }
 
-  // --- Gap / Overlap ---
-  function createGap(from, to) {
-    const mins = timeToMin(to) - timeToMin(from);
-    const h = Math.max(COMPACT_H, Math.round((mins / 15) * ROW_H));
+  // --- Gaps ---
+  function createGap(from, to, minTime) {
     const el = document.createElement('div');
     el.className = 'tl-gap';
-    el.style.height = h + 'px';
-    el.innerHTML = `<span>${fmtTime(from)} – ${fmtTime(to)}</span> <span class="gap-dur">${mins}m open</span>`;
-    el.title = 'Double-click to add activity here';
+    const top = (timeToMin(from) - minTime) * PX_PER_MIN;
+    const height = Math.max(18, (timeToMin(to) - timeToMin(from)) * PX_PER_MIN);
+    el.style.top = top + 'px';
+    el.style.height = height + 'px';
+    const mins = timeToMin(to) - timeToMin(from);
+    el.innerHTML = `<span>${mins}m open</span>`;
+    el.title = 'Double-click to add activity';
     el.addEventListener('dblclick', () => triggerSlotAdd(from, to));
     el.addEventListener('contextmenu', (e) => { e.preventDefault(); triggerSlotAdd(from, to); });
-    return el;
-  }
-
-  function createOverlap(prevEnd, curStart) {
-    const el = document.createElement('div');
-    el.className = 'tl-overlap';
-    el.textContent = `Overlap: ${fmtTime(curStart)} – ${fmtTime(prevEnd)}`;
     return el;
   }
 
@@ -390,11 +365,9 @@ const Timeline = (() => {
     if (idx >= 0) blocks[idx] = { ...blocks[idx], ...block };
     if (save) { pushHistory(); render(); notify(); }
   }
-
   function notify() { if (onChangeCallback) onChangeCallback(getBlocks()); }
   function timeToMin(t) { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
   function minToTime(m) { const h = Math.floor(Math.max(0, m) / 60) % 24; const min = ((m % 60) + 60) % 60; return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`; }
-
   function fmtTime(t) {
     if (!t) return '?';
     const [h, m] = t.split(':').map(Number);

@@ -144,37 +144,93 @@ footer {
 
 
 /* Timeline blocks */
-.tl-block {
+.tl-wrapper {
+  display: flex;
+  gap: 0;
+}
+
+.tl-gutter {
+  width: 50px;
   position: relative;
-  padding: 0.5rem 1rem;
-  margin: 2px 0;
-  background: var(--bg-surface);
-  border-radius: 6px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+}
+
+.tl-hour {
+  position: absolute;
+  right: 8px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+
+.tl-track {
+  flex: 1;
+  position: relative;
+  min-height: 400px;
+}
+
+.tl-gridline {
+  position: absolute;
+  left: 0; right: 0;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.tl-block {
+  position: absolute;
+  left: 4px; right: 4px;
   border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
   cursor: grab;
   user-select: none;
-  transition: box-shadow 0.15s, opacity 0.15s;
+  overflow: hidden;
+  transition: box-shadow 0.15s;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  overflow: hidden;
 }
 
-.tl-block:hover { box-shadow: 0 0 0 1px var(--accent); }
-.tl-block.dragging { opacity: 0.3; transform: scale(0.98); }
-.tl-block.drag-over { box-shadow: 0 -3px 0 0 var(--accent); }
+.tl-block:hover { box-shadow: 0 0 0 1px var(--accent); z-index: 5; }
+.tl-block.dragging { opacity: 0.3; }
+.tl-block.drag-over { box-shadow: 0 0 0 2px var(--accent); }
+
+.tl-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tl-block-label { font-weight: 600; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-block-time { font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; }
+.tl-block-memo { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Clock markers */
+.tl-block.tl-marker {
+  left: 0; right: 0;
+  height: 28px !important;
+  background: transparent;
+  border-left: none;
+  border-top: 3px solid var(--success);
+  border-radius: 0;
+  padding: 0 0.6rem;
+  cursor: pointer;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+.tl-block.tl-marker .tl-marker-time { font-size: 0.8rem; font-weight: 700; color: var(--text-primary); }
+.tl-block.tl-marker .tl-marker-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; color: var(--text-muted); }
+.tl-block.tl-marker[style*="border-color: #e74c3c"] { border-top-color: var(--danger); }
 
 /* Compact single-line blocks (break/lunch) */
-.tl-block.tl-compact {
-  padding: 0.2rem 1rem;
-  min-height: 0;
-}
-.tl-compact-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  white-space: nowrap;
-}
+.tl-block.tl-compact { padding: 0.2rem 0.6rem; }
+.tl-compact-row { display: flex; align-items: center; gap: 1rem; white-space: nowrap; }
 .tl-compact-row .tl-label { font-weight: 600; text-transform: capitalize; min-width: 50px; }
 .tl-compact-row .tl-time { font-size: 0.8rem; color: var(--text-muted); }
 .tl-compact-row .tl-memo { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
@@ -231,15 +287,15 @@ footer {
 
 /* Gap / Overlap */
 .tl-gap {
+  position: absolute;
+  left: 4px; right: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  margin: 2px 0;
   background: rgba(243,156,18,0.08);
   border: 1px dashed var(--warning);
   border-radius: 4px;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--warning);
   cursor: pointer;
   transition: background 0.15s;
@@ -732,18 +788,4 @@ footer {
 .tl-device-accordion.open .acc-body { display: block; }
 .tl-device-accordion.open .acc-arrow { transform: rotate(90deg); display: inline-block; }
 
-/* Clock in/out markers */
-.tl-block.tl-marker {
-  padding: 0.3rem 1rem;
-  background: transparent;
-  border-left: none;
-  border-top: 2px solid var(--success);
-  border-bottom: none;
-  border-radius: 0;
-  cursor: pointer;
-  margin: 0.5rem 0;
-}
-.tl-block.tl-marker.clock-out { border-top-color: var(--danger); }
-.tl-marker .tl-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
-.tl-marker .tl-time { display: inline; margin-right: 0.5rem; }
-.tl-marker .tl-handle { display: none; }
+/* Clock markers — handled in .tl-block.tl-marker above */
