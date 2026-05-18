@@ -146,19 +146,38 @@ footer {
 /* Timeline blocks */
 .tl-block {
   position: relative;
-  padding: 0.75rem 1rem;
-  margin: 0.25rem 0;
+  padding: 0.5rem 1rem;
+  margin: 2px 0;
   background: var(--bg-surface);
   border-radius: 6px;
   border-left: 4px solid var(--accent);
   cursor: grab;
   user-select: none;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s, opacity 0.15s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .tl-block:hover { box-shadow: 0 0 0 1px var(--accent); }
-.tl-block.dragging { opacity: 0.5; }
-.tl-block.drag-over { box-shadow: 0 -2px 0 0 var(--accent); }
+.tl-block.dragging { opacity: 0.3; transform: scale(0.98); }
+.tl-block.drag-over { box-shadow: 0 -3px 0 0 var(--accent); }
+
+/* Compact single-line blocks (break/lunch) */
+.tl-block.tl-compact {
+  padding: 0.2rem 1rem;
+  min-height: 0;
+}
+.tl-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  white-space: nowrap;
+}
+.tl-compact-row .tl-label { font-weight: 600; text-transform: capitalize; min-width: 50px; }
+.tl-compact-row .tl-time { font-size: 0.8rem; color: var(--text-muted); }
+.tl-compact-row .tl-memo { font-size: 0.8rem; color: var(--text-muted); margin-left: auto; }
 
 .tl-time {
   font-size: 0.8rem;
@@ -212,10 +231,12 @@ footer {
 
 /* Gap / Overlap */
 .tl-gap {
-  text-align: center;
-  padding: 0.4rem;
-  margin: 0.2rem 0;
-  background: rgba(243,156,18,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 2px 0;
+  background: rgba(243,156,18,0.08);
   border: 1px dashed var(--warning);
   border-radius: 4px;
   font-size: 0.8rem;
@@ -223,7 +244,8 @@ footer {
   cursor: pointer;
   transition: background 0.15s;
 }
-.tl-gap:hover { background: rgba(243,156,18,0.3); }
+.tl-gap:hover { background: rgba(243,156,18,0.2); }
+.tl-gap .gap-dur { opacity: 0.7; }
 
 .tl-overlap {
   text-align: center;

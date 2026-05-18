@@ -235,11 +235,20 @@ const Guided = (() => {
   function quickAdd(type) {
     const blocks = Timeline.getBlocks();
     const lastEnd = blocks.length > 0 ? blocks[blocks.length - 1].end : '07:00';
-    const durations = { break: 15, lunch: 30, '5s': 30, clock_in: 0, clock_out: 0 };
-    const dur = durations[type] || 15;
+    const durations = { break: 15, lunch: 30, '5s': 30 };
 
+    if (type === 'clock_in' || type === 'clock_out') {
+      // Markers: start time only, no end, no further prompts
+      state.start = lastEnd;
+      state.end = null;
+      state.memo = null;
+      finish();
+      return;
+    }
+
+    const dur = durations[type] || 15;
     state.start = lastEnd;
-    state.end = dur > 0 ? addMin(lastEnd, dur) : lastEnd;
+    state.end = addMin(lastEnd, dur);
     state.memo = null;
     finish();
   }

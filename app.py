@@ -84,16 +84,34 @@ def create_app(cfg, web_root, db_path, share_ok):
         return jsonify({"ok": True})
 
     # --- /api/day/{date} ---
+    def _get_archive_db():
+        """Resolve path to user's shared archive timelog.db (POST folder)."""
+        sync_target = cfg.get("sync_target")
+        user_id = cfg.get("user_id")
+        if not sync_target or not user_id:
+            return None
+        archive = os.path.join(sync_target, f"{user_id}_timelog.db")
+        if os.path.isfile(archive):
+            return archive
+        return None
+
     @app.route("/api/day/<date_iso>", methods=["GET"])
     def get_day(date_iso):
         draft = db.get_draft(date_iso, db_path)
         if draft:
             return jsonify(draft)
-        # Try to reconstruct from TimeLogTable
+        # Try local TimeLogTable
         rows = db.get_timelog_rows(date_iso, db_path)
         if rows:
             blocks = _rows_to_blocks(rows)
             return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
+        # Try shared archive DB
+        archive = _get_archive_db()
+        if archive:
+            rows = db.get_timelog_rows(date_iso, archive)
+            if rows:
+                blocks = _rows_to_blocks(rows)
+                return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
         return jsonify({"date": date_iso, "blocks": [], "posted": False, "posted_at": None})
 
     @app.route("/api/day/<date_iso>", methods=["POST"])
@@ -171,7 +189,6 @@ def create_app(cfg, web_root, db_path, share_ok):
         import calendar
         conn = db.get_db(db_path)
         days = {}
-        # Check DayDraft entries for this month
         prefix = f"{year}-{month:02d}-"
         drafts = conn.execute(
             "SELECT date, blocks, posted FROM DayDraft WHERE date LIKE ?", (prefix + '%',)
@@ -185,13 +202,26 @@ def create_app(cfg, web_root, db_path, share_ok):
                 days[d] = "complete"
             else:
                 days[d] = "draft"
-        # Check TimeLogTable for days with history but no draft
+        # Check local TimeLogTable
         all_rows = conn.execute("SELECT DISTINCT date FROM TimeLogTable").fetchall()
         conn.close()
         for row in all_rows:
             iso = db._legacy_to_iso(row["date"])
             if iso and iso.startswith(prefix) and iso not in days:
                 days[iso] = "history"
+        # Check shared archive DB
+        archive = _get_archive_db()
+        if archive:
+            try:
+                aconn = db.get_db(archive)
+                arows = aconn.execute("SELECT DISTINCT date FROM TimeLogTable").fetchall()
+                aconn.close()
+                for row in arows:
+                    iso = db._legacy_to_iso(row["date"])
+                    if iso and iso.startswith(prefix) and iso not in days:
+                        days[iso] = "history"
+            except Exception:
+                pass
         return jsonify({"year": year, "month": month, "days": days})
 
     # --- /api/history ---
