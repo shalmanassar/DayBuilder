@@ -67,22 +67,18 @@ def validate_blocks(blocks):
 
 
 def flatten_blocks(blocks, date_iso, user_id):
-    """Convert DayDraft blocks → TimeLogTable rows."""
-    legacy_date = db._iso_to_legacy(date_iso)
+    """Convert DayDraft blocks → TimeLogTable rows (master DB format: JDN + unix ts)."""
+    jdn = db.iso_to_jdn(date_iso)
     ts = int(_time.time())
     rows = []
 
     for seq, block in enumerate(sorted(blocks, key=lambda b: b.get('start', ''))):
         btype = block.get('type', '')
-        if btype in ('clock_in', 'clock_out'):
-            job = btype
-        else:
-            job = btype
+        job = btype if btype in ('clock_in', 'clock_out') else btype
 
         start_time = block.get('start', '')
-        # Convert 24h to 12h format for legacy
-        time_12h = _to_12h(start_time) if start_time else ''
-        elapsed = _elapsed_str(block) if block.get('start') and block.get('end') else '0:00:00'
+        time_unix = db.time_to_unix(start_time, date_iso) if start_time else ts
+        elapsed = _elapsed_str(block) if block.get('start') and block.get('end') else None
 
         memo_parts = []
         if block.get('subtype'):
@@ -93,13 +89,13 @@ def flatten_blocks(blocks, date_iso, user_id):
 
         rows.append({
             'uid': f"{user_id}_{seq}_{ts}",
-            'date': legacy_date,
+            'date': jdn,
             'job': job,
-            'time': time_12h,
+            'time': time_unix,
             'e_time': elapsed,
             'memo': memo,
-            'device': block.get('device'),
-            'qty': block.get('qty')
+            'device': block.get('device') or '',
+            'qty': block.get('qty') or ''
         })
 
     return rows

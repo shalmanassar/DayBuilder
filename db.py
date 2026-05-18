@@ -2,7 +2,8 @@
 import sqlite3
 import json
 import os
-from datetime import datetime
+import time as _time
+from datetime import datetime, date, timedelta
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "timelog.db")
 
@@ -35,6 +36,58 @@ def init_db(db_path=None):
     """)
     conn.commit()
     conn.close()
+
+
+# --- JDN / Unix timestamp helpers (master DB format) ---
+
+def iso_to_jdn(iso_date):
+    """YYYY-MM-DD → Julian Day Number (integer)."""
+    d = date.fromisoformat(iso_date)
+    # Algorithm: https://en.wikipedia.org/wiki/Julian_day
+    a = (14 - d.month) // 12
+    y = d.year + 4800 - a
+    m = d.month + 12 * a - 3
+    return d.day + (153 * m + 2) // 5 + 365 * y + y // 4 - y // 100 + y // 400 - 32045
+
+
+def jdn_to_iso(jdn):
+    """Julian Day Number → YYYY-MM-DD string."""
+    # Algorithm from Meeus
+    l = jdn + 68569
+    n = 4 * l // 146097
+    l = l - (146097 * n + 3) // 4
+    i = 4000 * (l + 1) // 1461001
+    l = l - 1461 * i // 4 + 31
+    j = 80 * l // 2447
+    day = l - 2447 * j // 80
+    l = j // 11
+    month = j + 2 - 12 * l
+    year = 100 * (n - 49) + i + l
+    return f"{year:04d}-{month:02d}-{day:02d}"
+
+
+def time_to_unix(time_24h, iso_date):
+    """HH:MM (24h) + YYYY-MM-DD → unix timestamp (int)."""
+    h, m = int(time_24h.split(":")[0]), int(time_24h.split(":")[1])
+    dt = datetime.fromisoformat(f"{iso_date}T{h:02d}:{m:02d}:00")
+    return int(dt.timestamp())
+
+
+def unix_to_time(ts):
+    """Unix timestamp → HH:MM (24h)."""
+    dt = datetime.fromtimestamp(ts)
+    return f"{dt.hour:02d}:{dt.minute:02d}"
+
+
+def get_timelog_by_jdn(user_id, jdn, db_path):
+    """Get rows from TimeLogTable for a user on a specific JDN."""
+    conn = get_db(db_path)
+    rows = conn.execute(
+        "SELECT * FROM TimeLogTable WHERE uid LIKE ? AND date = ? AND uid NOT LIKE 'v-%' ORDER BY time",
+        (f"{user_id}_%", jdn)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 # --- DayDraft CRUD ---

@@ -84,34 +84,69 @@ def create_app(cfg, web_root, db_path, share_ok):
         return jsonify({"ok": True})
 
     # --- /api/day/{date} ---
-    def _get_archive_db():
-        """Resolve path to user's shared archive timelog.db (POST folder)."""
+    def _get_master_db():
+        """Resolve path to shared master m_timelog.db."""
         sync_target = cfg.get("sync_target")
-        user_id = cfg.get("user_id")
-        if not sync_target or not user_id:
+        if not sync_target:
             return None
-        archive = os.path.join(sync_target, f"{user_id}_timelog.db")
-        if os.path.isfile(archive):
-            return archive
-        return None
+        p = os.path.join(sync_target, "m_timelog.db")
+        return p if os.path.isfile(p) else None
+
+    def _master_rows_to_blocks(rows):
+        """Convert master DB rows (JDN dates, unix timestamps) to UI blocks."""
+        blocks = []
+        for i, r in enumerate(rows):
+            ts = r.get("time")
+            start = db.unix_to_time(ts) if isinstance(ts, int) else None
+            end = None
+            if r.get("e_time") and start:
+                try:
+                    parts = r["e_time"].split(":")
+                    mins = int(parts[0]) * 60 + int(parts[1])
+                    if mins > 0:
+                        h, m = int(start.split(":")[0]), int(start.split(":")[1])
+                        total = h * 60 + m + mins
+                        end = f"{total // 60:02d}:{total % 60:02d}"
+                except (ValueError, IndexError):
+                    pass
+            job = r.get("job", "")
+            btype = _normalize_job(job)
+            is_marker = btype in ("clock_in", "clock_out", "eod")
+            blocks.append({
+                "id": r.get("uid") or f"master_{i}",
+                "type": btype,
+                "subtype": None,
+                "device": r.get("device") if r.get("device") else None,
+                "qty": int(r["qty"]) if r.get("qty") and str(r["qty"]).strip() else None,
+                "start": start,
+                "end": None if is_marker else end,
+                "memo": r.get("memo") if r.get("memo") else None,
+                "_reconstructed": True
+            })
+        return blocks
 
     @app.route("/api/day/<date_iso>", methods=["GET"])
     def get_day(date_iso):
         draft = db.get_draft(date_iso, db_path)
         if draft:
             return jsonify(draft)
-        # Try local TimeLogTable
-        rows = db.get_timelog_rows(date_iso, db_path)
+        # Try local TimeLogTable (has 60-day cache from master)
+        user_id = cfg.get("user_id", "")
+        jdn = db.iso_to_jdn(date_iso)
+        rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
         if rows:
-            blocks = _rows_to_blocks(rows)
+            blocks = _master_rows_to_blocks(rows)
             return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
-        # Try shared archive DB
-        archive = _get_archive_db()
-        if archive:
-            rows = db.get_timelog_rows(date_iso, archive)
-            if rows:
-                blocks = _rows_to_blocks(rows)
-                return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
+        # Try master DB directly (older data, with delay)
+        master = _get_master_db()
+        if master:
+            try:
+                rows = db.get_timelog_by_jdn(user_id, jdn, master)
+                if rows:
+                    blocks = _master_rows_to_blocks(rows)
+                    return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
+            except Exception:
+                pass
         return jsonify({"date": date_iso, "blocks": [], "posted": False, "posted_at": None})
 
     @app.route("/api/day/<date_iso>", methods=["POST"])
@@ -163,6 +198,7 @@ def create_app(cfg, web_root, db_path, share_ok):
     @app.route("/api/post/<date_iso>", methods=["POST"])
     def post_day_endpoint(date_iso):
         import post
+        import sync
         wr = _get_web_root()
         shared = {}
         if wr:
@@ -171,6 +207,16 @@ def create_app(cfg, web_root, db_path, share_ok):
                 with open(shared_path) as f:
                     shared = json.load(f)
         result = post.post_day(date_iso, cfg, shared, db_path)
+        # Sync to master on successful post
+        if result.get('ok'):
+            user_id = cfg.get("user_id", "")
+            jdn = db.iso_to_jdn(date_iso)
+            rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
+            if rows:
+                ok, err = sync.append_to_master(cfg, rows)
+                result['master_synced'] = ok
+                if err:
+                    result['master_error'] = err
         status_code = 200 if result.get('ok') else 400
         return jsonify(result), status_code
 
@@ -186,7 +232,7 @@ def create_app(cfg, web_root, db_path, share_ok):
     # --- /api/calendar/{year}/{month} ---
     @app.route("/api/calendar/<int:year>/<int:month>", methods=["GET"])
     def get_calendar(year, month):
-        import calendar
+        import calendar as cal_mod
         conn = db.get_db(db_path)
         days = {}
         prefix = f"{year}-{month:02d}-"
@@ -202,24 +248,38 @@ def create_app(cfg, web_root, db_path, share_ok):
                 days[d] = "complete"
             else:
                 days[d] = "draft"
-        # Check local TimeLogTable
-        all_rows = conn.execute("SELECT DISTINCT date FROM TimeLogTable").fetchall()
-        conn.close()
-        for row in all_rows:
-            iso = db._legacy_to_iso(row["date"])
-            if iso and iso.startswith(prefix) and iso not in days:
+        # Check local TimeLogTable (JDN format)
+        user_id = cfg.get("user_id", "")
+        _, days_in_month = cal_mod.monthrange(year, month)
+        for day in range(1, days_in_month + 1):
+            iso = f"{year}-{month:02d}-{day:02d}"
+            if iso in days:
+                continue
+            jdn = db.iso_to_jdn(iso)
+            rows = conn.execute(
+                "SELECT 1 FROM TimeLogTable WHERE uid LIKE ? AND date = ? AND uid NOT LIKE 'v-%' LIMIT 1",
+                (f"{user_id}_%", jdn)
+            ).fetchone()
+            if rows:
                 days[iso] = "history"
-        # Check shared archive DB
-        archive = _get_archive_db()
-        if archive:
+        conn.close()
+        # Check master DB for days not in local
+        master = _get_master_db()
+        if master:
             try:
-                aconn = db.get_db(archive)
-                arows = aconn.execute("SELECT DISTINCT date FROM TimeLogTable").fetchall()
-                aconn.close()
-                for row in arows:
-                    iso = db._legacy_to_iso(row["date"])
-                    if iso and iso.startswith(prefix) and iso not in days:
+                mconn = db.get_db(master)
+                for day in range(1, days_in_month + 1):
+                    iso = f"{year}-{month:02d}-{day:02d}"
+                    if iso in days:
+                        continue
+                    jdn = db.iso_to_jdn(iso)
+                    row = mconn.execute(
+                        "SELECT 1 FROM TimeLogTable WHERE uid LIKE ? AND date = ? AND uid NOT LIKE 'v-%' LIMIT 1",
+                        (f"{user_id}_%", jdn)
+                    ).fetchone()
+                    if row:
                         days[iso] = "history"
+                mconn.close()
             except Exception:
                 pass
         return jsonify({"year": year, "month": month, "days": days})
@@ -286,14 +346,35 @@ def create_app(cfg, web_root, db_path, share_ok):
             return jsonify({"error": str(e), "sheets": []}), 500
 
     # --- /api/shutdown ---
+    # --- /api/sync ---
+    @app.route("/api/sync", methods=["POST"])
+    def sync_to_master():
+        """Manual trigger: sync today's posted rows to master."""
+        import sync
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        user_id = cfg.get("user_id", "")
+        jdn = db.iso_to_jdn(today)
+        # Get today's rows from local DB
+        rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
+        if not rows:
+            return jsonify({"ok": True, "msg": "Nothing to sync"})
+        ok, err = sync.append_to_master(cfg, rows)
+        if ok:
+            return jsonify({"ok": True, "msg": f"Synced {len(rows)} rows to master"})
+        return jsonify({"ok": False, "error": err}), 500
+
     @app.route("/api/shutdown", methods=["POST"])
     def shutdown():
-        # Sync DB if needed
-        import post
-        sync_target = cfg.get("sync_target")
-        user_id = cfg.get("user_id")
-        if sync_target and user_id:
-            post.sync_db(db_path, sync_target, user_id)
+        # Sync to master on shutdown
+        import sync
+        from datetime import date as _date
+        user_id = cfg.get("user_id", "")
+        today = _date.today().isoformat()
+        jdn = db.iso_to_jdn(today)
+        rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
+        if rows:
+            sync.append_to_master(cfg, rows)
         # Shutdown Flask
         import threading
         threading.Thread(target=lambda: (os._exit(0))).start()
