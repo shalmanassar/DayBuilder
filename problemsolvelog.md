@@ -40,6 +40,46 @@ Double-click exe
 
 ---
 
+## Session Notes — 2026-05-18
+
+### Completed Today
+- Embedded setup HTML (eliminated dual-setup problem)
+- Splash as launch indicator only
+- Simplified reset to 3 levels (refresh/settings/factory)
+- Deployed web files to share (were never deployed before — all revision 1 UI was local-only)
+- Proportional timeline (1 row per 15min, compact breaks, drag-push resize)
+- Clock in/out no longer asks for end time
+- Master DB sync system (lock-file, backup, append-only, void/replace)
+- 3-DB architecture: local → remote user → master
+- Startup sync: remote user DB first, master only on initial bootstrap
+- One-time merge of Desktop RMAJobLogger_v3 data into master + local
+- Save button (local + remote user backup, no Excel)
+- Renamed "POST TO LOG" → "Submit to Mgr"
+- Stricter validation (require work blocks, gaps block posting)
+
+### Outstanding Issues
+- **Rate calculation not implemented**: `qty / production_hours` vs quota per device type. Needed for both Report modal and PDF generation.
+- **PDF report generation**: replaces BridgeReporter output. Separate from mgr sheet write.
+- **Mgr sheet write** (`post.py write_workbook`): already works, writes raw counts + hours + comment to correct cells. This is a DATA DUMP only — not a report.
+- **Report modal**: currently shows raw counts only, no rates or % of quota.
+
+### Architecture Clarification
+- **Mgr sheet**: structured data in specific cells. Format is fixed by the manager's workbook layout.
+- **PDF report**: human-readable, includes rate calculations, replaces BridgeReporter PDF output. Different format from mgr sheet.
+- **Rate calculation**: `rate = device_qty / production_hours`, `pct = rate / quota_per_hour`. Core math shared by both outputs.
+
+### Key Paths
+- Desktop legacy DB: `C:\Users\chrlsim\OneDrive - amazon.com\Desktop\RMAJobLogger_v3\timelog.db` (135KB, last used 5/7/26)
+- Master: `POST/m_timelog.db` (4241 rows after merge)
+- Remote user: `POST/chrlsim_timelog.db` (1130 rows)
+- Backups: `oldversions/backups/` (pre-merge backup exists)
+
+---
+
+*Updated: 2026-05-18 14:37 — chrlsim + Kiro*
+
+---
+
 ## The Problem
 
 The exe (`RMA Job Tracking Launcher.exe`) has three failures in its first-run launch sequence:
