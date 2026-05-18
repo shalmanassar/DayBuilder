@@ -42,10 +42,9 @@ const Settings = (() => {
       </div>
 
       <div class="settings-reset">
-        <button id="setRefreshCache">Refresh Cache</button>
-        <button id="setResetSoft">Soft Reset</button>
-        <button id="setResetHard">Hard Reset</button>
-        <button id="setResetFull">Full Reset</button>
+        <button id="setRefresh">Refresh App</button>
+        <button id="setResetSettings">Reset Settings</button>
+        <button id="setResetFactory">Factory Reset</button>
       </div>
 
       <div class="settings-actions">
@@ -90,26 +89,24 @@ const Settings = (() => {
     };
 
     // Reset buttons
-    document.getElementById('setRefreshCache').onclick = async () => {
-      const res = await fetch('/api/reset/cache', { method: 'POST' });
+    document.getElementById('setRefresh').onclick = async () => {
+      const res = await fetch('/api/reset/refresh', { method: 'POST' });
       const data = await res.json();
-      if (data.ok) { alert(data.msg); location.reload(); } else { alert(data.error || 'Failed'); }
+      if (data.ok) location.reload(); else alert(data.error || 'Failed');
     };
-    document.getElementById('setResetSoft').onclick = () => doReset('soft');
-    document.getElementById('setResetHard').onclick = () => doReset('hard');
-    document.getElementById('setResetFull').onclick = () => doReset('full');
+    document.getElementById('setResetSettings').onclick = () => doReset('settings');
+    document.getElementById('setResetFactory').onclick = () => doReset('factory');
   }
 
   async function doReset(level) {
     const msgs = {
-      soft: 'Reset config only? (DB preserved, re-run setup on next launch)',
-      hard: 'Reset config + drafts? (Historical data preserved)',
-      full: 'Full reset? ALL local data will be deleted. This cannot be undone.'
+      settings: 'Reset settings? You will need to re-run setup on next launch.',
+      factory: 'Factory reset? ALL local data will be deleted. This cannot be undone.'
     };
     if (!confirm(msgs[level])) return;
     const res = await fetch(`/api/reset/${level}`, { method: 'POST' });
     const data = await res.json();
-    alert(data.msg || 'Reset complete. Restart the app.');
+    alert(data.msg || 'Done. Restart the app.');
   }
 
   return { open };

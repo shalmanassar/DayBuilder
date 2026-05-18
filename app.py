@@ -273,40 +273,32 @@ def create_app(cfg, web_root, db_path, share_ok):
     @app.route("/api/reset/<level>", methods=["POST"])
     def reset(level):
         from pathlib import Path
+        from bootstrap import sync_cache
         base = Path(db_path).parent
-        if level == "cache":
-            from bootstrap import sync_cache
-            wr = _get_web_root()
-            if wr:
-                sync_cache(wr)
-                return jsonify({"ok": True, "msg": "Cache refreshed from share. Reload the page."})
-            return jsonify({"error": "No web_root available to sync from."}), 400
-        elif level == "soft":
+
+        # Always refresh cache if share is reachable
+        wr = _get_web_root()
+        if wr:
+            sync_cache(wr)
+
+        if level == "refresh":
+            return jsonify({"ok": True, "msg": "Cache refreshed. Reloading..."})
+        elif level == "settings":
             cfg_path = base / "config.json"
             if cfg_path.exists():
                 cfg_path.unlink()
-            return jsonify({"ok": True, "msg": "Config reset. Restart to re-run setup."})
-        elif level == "hard":
-            cfg_path = base / "config.json"
-            if cfg_path.exists():
-                cfg_path.unlink()
-            conn = db.get_db(db_path)
-            conn.execute("DELETE FROM DayDraft")
-            conn.commit()
-            conn.close()
-            return jsonify({"ok": True, "msg": "Config + drafts reset."})
-        elif level == "full":
+            return jsonify({"ok": True, "msg": "Settings reset. Restart to re-run setup."})
+        elif level == "factory":
             import shutil
             for item in ["config.json", "timelog.db", "daybuilder.log"]:
                 p = base / item
                 if p.exists():
                     p.unlink()
-            for d in ["backup", "cache"]:
-                p = base / d
-                if p.exists():
-                    shutil.rmtree(p)
-            return jsonify({"ok": True, "msg": "Full reset. All local data removed."})
-        return jsonify({"error": "Invalid level. Use cache|soft|hard|full"}), 400
+            cache_p = base / "cache"
+            if cache_p.exists():
+                shutil.rmtree(cache_p)
+            return jsonify({"ok": True, "msg": "Factory reset complete. Restart the app."})
+        return jsonify({"error": "Invalid level. Use refresh|settings|factory"}), 400
 
     # --- Helper: reconstruct blocks from TimeLogTable rows ---
     def _rows_to_blocks(rows):
