@@ -310,6 +310,13 @@ def create_app(cfg, web_root, db_path, share_ok):
             return jsonify({"error": str(e), "sheets": []}), 500
 
     # --- /api/shutdown ---
+    # --- /api/save (sync to remote user backup, no Excel/master) ---
+    @app.route("/api/save", methods=["POST"])
+    def save_sync():
+        import sync
+        sync.sync_user_db(cfg, db_path)
+        return jsonify({"ok": True})
+
     # --- /api/sync ---
     @app.route("/api/sync", methods=["POST"])
     def sync_to_master():

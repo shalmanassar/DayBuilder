@@ -200,6 +200,19 @@
     }, { start, end });
   });
 
+  // Save button (local + remote user backup, no Excel)
+  const btnSave = document.getElementById('btnSave');
+  btnSave.addEventListener('click', async () => {
+    const blocks = Timeline.getBlocks();
+    await fetch(`/api/day/${currentDate}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({blocks})
+    });
+    await fetch('/api/save', {method: 'POST'});
+    btnSave.textContent = '✓ Saved';
+    setTimeout(() => { btnSave.textContent = 'Save'; }, 2000);
+  });
+
   // Post button
   Post.bindPostButton(btnPost, btnOpenTarget, () => Timeline.getBlocks(), () => currentDate);
 
