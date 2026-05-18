@@ -84,14 +84,6 @@ def create_app(cfg, web_root, db_path, share_ok):
         return jsonify({"ok": True})
 
     # --- /api/day/{date} ---
-    def _get_master_db():
-        """Resolve path to shared master m_timelog.db."""
-        sync_target = cfg.get("sync_target")
-        if not sync_target:
-            return None
-        p = os.path.join(sync_target, "m_timelog.db")
-        return p if os.path.isfile(p) else None
-
     def _master_rows_to_blocks(rows):
         """Convert master DB rows (JDN dates, unix timestamps) to UI blocks."""
         blocks = []
@@ -130,23 +122,13 @@ def create_app(cfg, web_root, db_path, share_ok):
         draft = db.get_draft(date_iso, db_path)
         if draft:
             return jsonify(draft)
-        # Try local TimeLogTable (has 60-day cache from master)
+        # Local TimeLogTable (has 60-day cache from remote user DB)
         user_id = cfg.get("user_id", "")
         jdn = db.iso_to_jdn(date_iso)
         rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
         if rows:
             blocks = _master_rows_to_blocks(rows)
             return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
-        # Try master DB directly (older data, with delay)
-        master = _get_master_db()
-        if master:
-            try:
-                rows = db.get_timelog_by_jdn(user_id, jdn, master)
-                if rows:
-                    blocks = _master_rows_to_blocks(rows)
-                    return jsonify({"date": date_iso, "blocks": blocks, "posted": True, "posted_at": None, "reconstructed": True})
-            except Exception:
-                pass
         return jsonify({"date": date_iso, "blocks": [], "posted": False, "posted_at": None})
 
     @app.route("/api/day/<date_iso>", methods=["POST"])
@@ -264,25 +246,6 @@ def create_app(cfg, web_root, db_path, share_ok):
             if rows:
                 days[iso] = "history"
         conn.close()
-        # Check master DB for days not in local
-        master = _get_master_db()
-        if master:
-            try:
-                mconn = db.get_db(master)
-                for day in range(1, days_in_month + 1):
-                    iso = f"{year}-{month:02d}-{day:02d}"
-                    if iso in days:
-                        continue
-                    jdn = db.iso_to_jdn(iso)
-                    row = mconn.execute(
-                        "SELECT 1 FROM TimeLogTable WHERE uid LIKE ? AND date = ? AND uid NOT LIKE 'v-%' LIMIT 1",
-                        (f"{user_id}_%", jdn)
-                    ).fetchone()
-                    if row:
-                        days[iso] = "history"
-                mconn.close()
-            except Exception:
-                pass
         return jsonify({"year": year, "month": month, "days": days})
 
     # --- /api/history ---

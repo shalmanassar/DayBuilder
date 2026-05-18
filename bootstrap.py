@@ -396,17 +396,17 @@ def main():
     db_path = str(BASE_DIR / cfg["db_path"])
     init_db(db_path)
 
-    # Pull 60-day history from master on startup (if share reachable)
+    # Pull 60-day history from remote user DB on startup (if share reachable)
     if serve_from and cfg.get("sync_target"):
         try:
             import sync
-            ok, err = sync.pull_history(cfg, db_path)
+            ok, err = sync.startup_sync(cfg, db_path)
             if ok:
-                logger.info("60-day history pull complete")
+                logger.info("Startup sync complete")
             elif err:
-                logger.warning(f"History pull: {err}")
+                logger.warning(f"Startup sync: {err}")
         except Exception as e:
-            logger.warning(f"History pull failed: {e}")
+            logger.warning(f"Startup sync failed: {e}")
 
     # Start Flask
     from app import create_app

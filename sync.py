@@ -190,52 +190,127 @@ def sync_user_db(cfg, local_db_path):
         return False
 
 
-# --- Pull 60-day history ---
+# --- Startup sync ---
 
-def pull_history(cfg, local_db_path):
-    """Pull user's last 60 days from master into local TimeLogTable. Non-destructive (skips existing uids)."""
-    master = _master_path(cfg)
-    if not master:
-        return False, "Master DB not found"
-
+def startup_sync(cfg, local_db_path):
+    """Startup sync logic:
+    - If remote user DB exists: pull last 60 days from it into local, push any local rows missing from remote.
+    - If remote user DB doesn't exist (initial): pull user's rows from master, create remote user DB.
+    - Master is never read after initial setup.
+    """
+    sync_target = cfg.get("sync_target")
     user_id = cfg.get("user_id")
-    if not user_id:
-        return False, "No user_id"
+    if not sync_target or not user_id:
+        return False, "No sync_target or user_id"
+    if not os.path.isdir(sync_target):
+        return False, "Sync target unreachable"
 
-    # Calculate JDN for 60 days ago
+    remote_user_path = os.path.join(sync_target, f"{user_id}_timelog.db")
+
+    if os.path.isfile(remote_user_path):
+        # Subsequent startup: sync between local and remote user DB
+        return _sync_local_remote(cfg, local_db_path, remote_user_path)
+    else:
+        # Initial startup: bootstrap from master, then create remote user DB
+        return _initial_bootstrap(cfg, local_db_path, remote_user_path)
+
+
+def _sync_local_remote(cfg, local_db_path, remote_user_path):
+    """Subsequent startup: ensure local has last 60 days from remote, push local rows to remote."""
+    user_id = cfg.get("user_id")
     from db import iso_to_jdn
-    cutoff_iso = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d")
-    cutoff_jdn = iso_to_jdn(cutoff_iso)
+    cutoff_jdn = iso_to_jdn((datetime.now() - timedelta(days=60)).strftime("%Y-%m-%d"))
 
+    # Pull last 60 days from remote into local (skip existing)
     try:
-        mconn = sqlite3.connect(master, timeout=10)
-        mconn.row_factory = sqlite3.Row
-        rows = mconn.execute(
+        rconn = sqlite3.connect(remote_user_path, timeout=10)
+        rconn.row_factory = sqlite3.Row
+        rows = rconn.execute(
             "SELECT * FROM TimeLogTable WHERE uid LIKE ? AND date >= ? AND uid NOT LIKE 'v-%'",
             (f"{user_id}_%", cutoff_jdn)
         ).fetchall()
-        mconn.close()
+        rconn.close()
     except Exception as e:
-        logger.error(f"Pull from master failed: {e}")
+        logger.warning(f"Read remote user DB failed: {e}")
         return False, str(e)
 
-    if not rows:
-        logger.info("No history to pull from master")
-        return True, None
-
-    # Insert into local DB (skip duplicates)
     lconn = sqlite3.connect(local_db_path, timeout=10)
-    inserted = 0
+    pulled = 0
     for r in rows:
         try:
             lconn.execute(
                 "INSERT INTO TimeLogTable (uid, date, job, time, e_time, memo, device, qty) VALUES (?,?,?,?,?,?,?,?)",
                 (r["uid"], r["date"], r["job"], r["time"], r["e_time"], r["memo"], r["device"], r["qty"])
             )
-            inserted += 1
+            pulled += 1
         except sqlite3.IntegrityError:
             pass
     lconn.commit()
+
+    # Push any local rows missing from remote
+    lconn.row_factory = sqlite3.Row
+    local_rows = lconn.execute(
+        "SELECT * FROM TimeLogTable WHERE uid LIKE ? AND uid NOT LIKE 'v-%'",
+        (f"{user_id}_%",)
+    ).fetchall()
     lconn.close()
-    logger.info(f"Pulled {inserted} new rows from master (of {len(rows)} total in range)")
+
+    try:
+        rconn = sqlite3.connect(remote_user_path, timeout=10)
+        pushed = 0
+        for r in local_rows:
+            try:
+                rconn.execute(
+                    "INSERT INTO TimeLogTable (uid, date, job, time, e_time, memo, device, qty) VALUES (?,?,?,?,?,?,?,?)",
+                    (r["uid"], r["date"], r["job"], r["time"], r["e_time"], r["memo"], r["device"], r["qty"])
+                )
+                pushed += 1
+            except sqlite3.IntegrityError:
+                pass
+        rconn.commit()
+        rconn.close()
+    except Exception as e:
+        logger.warning(f"Push to remote user DB failed: {e}")
+
+    logger.info(f"Startup sync: pulled {pulled} from remote, pushed {pushed} to remote")
+    return True, None
+
+
+def _initial_bootstrap(cfg, local_db_path, remote_user_path):
+    """Initial startup: pull user's rows from master into local, then create remote user DB."""
+    user_id = cfg.get("user_id")
+    master = _master_path(cfg)
+
+    if master:
+        # Pull ALL user rows from master (not just 60 days — this is the one-time bootstrap)
+        try:
+            mconn = sqlite3.connect(master, timeout=10)
+            mconn.row_factory = sqlite3.Row
+            rows = mconn.execute(
+                "SELECT * FROM TimeLogTable WHERE uid LIKE ? AND uid NOT LIKE 'v-%'",
+                (f"{user_id}_%",)
+            ).fetchall()
+            mconn.close()
+        except Exception as e:
+            logger.error(f"Initial pull from master failed: {e}")
+            return False, str(e)
+
+        lconn = sqlite3.connect(local_db_path, timeout=10)
+        for r in rows:
+            try:
+                lconn.execute(
+                    "INSERT INTO TimeLogTable (uid, date, job, time, e_time, memo, device, qty) VALUES (?,?,?,?,?,?,?,?)",
+                    (r["uid"], r["date"], r["job"], r["time"], r["e_time"], r["memo"], r["device"], r["qty"])
+                )
+            except sqlite3.IntegrityError:
+                pass
+        lconn.commit()
+        lconn.close()
+        logger.info(f"Initial bootstrap: pulled {len(rows)} rows from master")
+    else:
+        logger.warning("No master DB found for initial bootstrap")
+
+    # Create remote user DB from local
+    sync_user_db(cfg, local_db_path)
+    logger.info(f"Created remote user DB: {remote_user_path}")
     return True, None
