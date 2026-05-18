@@ -201,14 +201,12 @@ const Timeline = (() => {
     return el;
   }
 
-  // --- Resize (5-min snap, tooltip follows cursor, removed on pointerup) ---
+  // --- Resize (5-min snap, tooltip follows cursor, ALWAYS cleaned up) ---
   function startResize(e, block, edge) {
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
     const origTime = edge === 'top' ? block.start : block.end;
-    const handle = e.target;
-    handle.setPointerCapture(e.pointerId);
 
     const tip = document.createElement('div');
     tip.className = 'tl-resize-tip';
@@ -220,53 +218,56 @@ const Timeline = (() => {
     const sorted = [...blocks].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
     const blockIdx = sorted.findIndex(b => b.id === block.id);
 
+    // Prevent render() from destroying our state mid-drag
+    let lastNewTime = origTime;
+
     function onMove(ev) {
       const dy = ev.clientY - startY;
       const minutesDelta = Math.round(dy / PX_PER_MIN / SNAP) * SNAP;
       const rawMin = timeToMin(origTime) + minutesDelta;
       const snapped = Math.round(rawMin / SNAP) * SNAP;
       const clamped = Math.max(0, Math.min(1439, snapped));
-      const newTime = minToTime(clamped);
+      lastNewTime = minToTime(clamped);
 
       if (edge === 'top') {
-        block.start = newTime;
+        block.start = lastNewTime;
         if (blockIdx > 0) {
           const prev = sorted[blockIdx - 1];
           if (!isMarker(prev) && prev.end && timeToMin(prev.end) > clamped) {
-            prev.end = newTime;
+            prev.end = lastNewTime;
             updateBlock(prev, false);
           }
         }
       } else {
-        block.end = newTime;
+        block.end = lastNewTime;
         if (blockIdx < sorted.length - 1) {
           const next = sorted[blockIdx + 1];
           if (!isMarker(next) && next.start && timeToMin(next.start) < clamped) {
             const dur = timeToMin(next.end) - timeToMin(next.start);
-            next.start = newTime;
+            next.start = lastNewTime;
             next.end = minToTime(clamped + dur);
             updateBlock(next, false);
           }
         }
       }
 
-      tip.textContent = fmtTime(newTime);
+      tip.textContent = fmtTime(lastNewTime);
       tip.style.left = ev.clientX + 12 + 'px';
       tip.style.top = ev.clientY - 10 + 'px';
       updateBlock(block, false);
-      render();
     }
 
     function onUp() {
-      handle.removeEventListener('pointermove', onMove);
-      handle.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
       tip.remove();
+      render();
       pushHistory();
       notify();
     }
 
-    handle.addEventListener('pointermove', onMove);
-    handle.addEventListener('pointerup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
   }
 
   // --- Reorder ---

@@ -248,28 +248,28 @@ footer {
 .tl-handle {
   position: absolute;
   left: 0; right: 0;
-  height: 12px;
+  height: 14px;
   cursor: ns-resize;
-  opacity: 0.4;
-  transition: opacity 0.2s, background 0.2s;
-  z-index: 2;
+  z-index: 10;
 }
 
-.tl-handle-top { top: -6px; }
-.tl-handle-bottom { bottom: -6px; }
+.tl-handle-top { top: -7px; }
+.tl-handle-bottom { bottom: -7px; }
+
 .tl-handle::after {
   content: '';
   position: absolute;
-  left: 0; right: 0;
+  left: 10%; right: 10%;
   height: 3px;
   top: 50%;
   transform: translateY(-50%);
-  background: var(--border);
+  background: transparent;
   border-radius: 2px;
   transition: background 0.15s;
 }
-.tl-block:hover .tl-handle { opacity: 1; }
-.tl-handle:hover::after, .tl-handle.active::after { background: var(--accent); }
+
+.tl-block:hover .tl-handle::after { background: var(--accent); opacity: 0.6; }
+.tl-handle:hover::after { background: var(--accent) !important; opacity: 1 !important; height: 4px; }
 
 /* Resize tooltip */
 .tl-resize-tip {
