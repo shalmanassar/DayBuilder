@@ -174,6 +174,22 @@ def void_and_replace(cfg, old_uid, new_row):
         _release_lock(cfg)
 
 
+def sync_user_db(cfg, local_db_path):
+    """Copy local DB to remote user DB on share. This is the authoritative per-user backup."""
+    sync_target = cfg.get("sync_target")
+    user_id = cfg.get("user_id")
+    if not sync_target or not user_id or not os.path.isdir(sync_target):
+        return False
+    dest = os.path.join(sync_target, f"{user_id}_timelog.db")
+    try:
+        shutil.copy2(local_db_path, dest)
+        logger.info(f"Remote user DB synced: {dest}")
+        return True
+    except OSError as e:
+        logger.warning(f"Remote user DB sync failed: {e}")
+        return False
+
+
 # --- Pull 60-day history ---
 
 def pull_history(cfg, local_db_path):

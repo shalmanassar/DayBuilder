@@ -217,6 +217,7 @@ def create_app(cfg, web_root, db_path, share_ok):
                 result['master_synced'] = ok
                 if err:
                     result['master_error'] = err
+            sync.sync_user_db(cfg, db_path)
         status_code = 200 if result.get('ok') else 400
         return jsonify(result), status_code
 
@@ -366,7 +367,7 @@ def create_app(cfg, web_root, db_path, share_ok):
 
     @app.route("/api/shutdown", methods=["POST"])
     def shutdown():
-        # Sync to master on shutdown
+        # Sync to master and remote user DB on shutdown
         import sync
         from datetime import date as _date
         user_id = cfg.get("user_id", "")
@@ -375,6 +376,7 @@ def create_app(cfg, web_root, db_path, share_ok):
         rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
         if rows:
             sync.append_to_master(cfg, rows)
+        sync.sync_user_db(cfg, db_path)
         # Shutdown Flask
         import threading
         threading.Thread(target=lambda: (os._exit(0))).start()
