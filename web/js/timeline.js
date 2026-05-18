@@ -127,6 +127,24 @@ const Timeline = (() => {
       }
     }
 
+    // Drop zones every 15 min on the track (accept block drops)
+    for (let m = minTime; m < maxTime; m += 15) {
+      const dz = document.createElement('div');
+      dz.className = 'tl-dropzone';
+      dz.style.top = ((m - minTime) * PX_PER_MIN) + 'px';
+      dz.style.height = (15 * PX_PER_MIN) + 'px';
+      dz.dataset.time = minToTime(m);
+      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dz-hover'); });
+      dz.addEventListener('dragleave', () => dz.classList.remove('dz-hover'));
+      dz.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dz.classList.remove('dz-hover');
+        const blockId = e.dataTransfer.getData('text/plain');
+        moveBlockToTime(blockId, minToTime(m));
+      });
+      track.appendChild(dz);
+    }
+
     wrapper.appendChild(gutter);
     wrapper.appendChild(track);
     container.appendChild(wrapper);
@@ -278,6 +296,17 @@ const Timeline = (() => {
     if (fromIdx < 0 || toIdx < 0) return;
     const [moved] = blocks.splice(fromIdx, 1);
     blocks.splice(toIdx, 0, moved);
+    pushHistory(); render(); notify();
+  }
+
+  // --- Move block to a specific time (drop on empty slot) ---
+  function moveBlockToTime(blockId, newStart) {
+    const idx = blocks.findIndex(b => b.id === blockId);
+    if (idx < 0) return;
+    const block = blocks[idx];
+    const dur = timeToMin(block.end) - timeToMin(block.start);
+    block.start = newStart;
+    block.end = dur > 0 ? minToTime(timeToMin(newStart) + dur) : null;
     pushHistory(); render(); notify();
   }
 

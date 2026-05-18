@@ -180,6 +180,18 @@ footer {
   pointer-events: none;
 }
 
+.tl-dropzone {
+  position: absolute;
+  left: 0; right: 0;
+  z-index: 0;
+  transition: background 0.1s;
+}
+.tl-dropzone.dz-hover {
+  background: rgba(52, 152, 219, 0.15);
+  outline: 1px dashed var(--accent);
+  border-radius: 3px;
+}
+
 .tl-block {
   position: absolute;
   left: 4px; right: 4px;
