@@ -42,6 +42,7 @@ const Settings = (() => {
       </div>
 
       <div class="settings-reset">
+        <button id="setRefreshCache">Refresh Cache</button>
         <button id="setResetSoft">Soft Reset</button>
         <button id="setResetHard">Hard Reset</button>
         <button id="setResetFull">Full Reset</button>
@@ -89,6 +90,11 @@ const Settings = (() => {
     };
 
     // Reset buttons
+    document.getElementById('setRefreshCache').onclick = async () => {
+      const res = await fetch('/api/reset/cache', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) { alert(data.msg); location.reload(); } else { alert(data.error || 'Failed'); }
+    };
     document.getElementById('setResetSoft').onclick = () => doReset('soft');
     document.getElementById('setResetHard').onclick = () => doReset('hard');
     document.getElementById('setResetFull').onclick = () => doReset('full');

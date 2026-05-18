@@ -274,7 +274,14 @@ def create_app(cfg, web_root, db_path, share_ok):
     def reset(level):
         from pathlib import Path
         base = Path(db_path).parent
-        if level == "soft":
+        if level == "cache":
+            from bootstrap import sync_cache
+            wr = _get_web_root()
+            if wr:
+                sync_cache(wr)
+                return jsonify({"ok": True, "msg": "Cache refreshed from share. Reload the page."})
+            return jsonify({"error": "No web_root available to sync from."}), 400
+        elif level == "soft":
             cfg_path = base / "config.json"
             if cfg_path.exists():
                 cfg_path.unlink()
@@ -299,7 +306,7 @@ def create_app(cfg, web_root, db_path, share_ok):
                 if p.exists():
                     shutil.rmtree(p)
             return jsonify({"ok": True, "msg": "Full reset. All local data removed."})
-        return jsonify({"error": "Invalid level. Use soft|hard|full"}), 400
+        return jsonify({"error": "Invalid level. Use cache|soft|hard|full"}), 400
 
     # --- Helper: reconstruct blocks from TimeLogTable rows ---
     def _rows_to_blocks(rows):
