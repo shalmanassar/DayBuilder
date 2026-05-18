@@ -143,7 +143,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-deep);color
 <!-- Step 1: Username -->
 <div class="setup-step active" id="step1">
   <label class="setup-label">Your username (login name)</label>
-  <input class="setup-input" id="userId" placeholder="e.g. chrlsim" autofocus>
+  <input class="setup-input" id="userId" placeholder="e.g. jsmith" autofocus>
   <label class="setup-label">Display name</label>
   <input class="setup-input" id="displayName" placeholder="e.g. Charles">
   <button class="setup-btn" id="btn1">Next &#8594;</button>
