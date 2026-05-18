@@ -36,23 +36,26 @@ Follow the numbered steps in the "Implementation Order" table at the bottom. Com
 
 ## 1. First-Run Setup Flow Rework
 
-### Current Problem
-The setup asks for a "web folder" which is confusing. Users don't know what that means.
+### Current Problem (RESOLVED)
+~~The setup asks for a "web folder" which is confusing. Users don't know what that means.~~
 
-### New Flow
+Resolved in v2.6.1: Setup is now a single embedded HTML page served from memory. No tkinter dialogs for setup. Splash is a launch indicator only.
 
-**Tier 1 (native dialog):**
-1. Pre-fill username with `os.getlogin()` (Windows login). Let user edit if wrong.
-2. Ask for the **RMAJobLogger directory** — label: "Select the RMAJobLogger folder on the shared drive"
-3. Start browse at `W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering` with error handling if unreachable (fall back to user's home directory or `C:\`; show warning toast explaining the share isn't reachable)
-4. App auto-discovers `POST/` and `DayBuilder/web/` under the selected directory. Validates both exist.
+### New Flow (Implemented)
 
-**Tier 2 (web-based, after Flask starts):**
-1. Username shown (pre-filled from Tier 1), editable
-2. "Select your Manager's Tech Reports folder" — start browse at `W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering` (same starting point)
-3. Once folder is selected, show a **file list** of `.xlsm`/`.xlsx` files in that directory (like the current sheet picker UI — grid of buttons). User picks their file.
-4. Sheet selection: auto-detect (first sheet, or match username). Only show sheet picker if 2+ sheets exist.
-5. Schedule confirmation (same as current step 5)
+**Bootstrap (instant):**
+1. Splash appears ("Opening browser...")
+2. `os.getlogin()` → `user_id` saved to config immediately
+3. Flask starts serving embedded setup page from memory
+4. Browser opens, splash closes
+
+**Setup wizard (in-browser, embedded HTML):**
+1. Username shown (pre-filled from `os.getlogin()`), editable. Display name field.
+2. "Select the RMAJobLogger folder on the shared drive" — browse via `/api/browse` (native OS picker triggered from browser). Start at `W:\Team Spaces\RAD IT Engineering\NA RAD IT Engineering`. Skip option for offline/dev.
+3. "Select your Manager's Tech Reports folder" — browse, then show `.xlsm`/`.xlsx` file grid for selection.
+4. Sheet selection: auto-detect or pick from list.
+5. Schedule confirmation (start/end times, breaks, lunch).
+6. Config saved → redirect to `/` → now served from share's `web/` (or cache).
 
 ### Derived Config
 From the RMAJobLogger path, auto-set:
@@ -234,7 +237,7 @@ Status values:
 | 4 | Device/qty accordion | Small (JS + CSS) |
 | 5 | Calendar mini-map + API endpoint | Medium (JS + Python + CSS) |
 | 6 | Historical data loading + legacy reconstruction testing | Medium (Python + JS) |
-| 7 | Setup flow rework (Tier 1 + Tier 2) | Medium (Python + HTML + JS) |
+| 7 | Setup flow rework (embedded HTML, no tkinter setup) | ~~Medium~~ **DONE** (v2.6.1) |
 | 8 | Open-slot click-to-add (double-click/right-click) | Small (JS) |
 
 ---

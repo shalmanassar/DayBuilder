@@ -2,7 +2,7 @@
 import json
 import os
 import signal
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 import db
 
 
@@ -13,44 +13,74 @@ def create_app(cfg, web_root, db_path, share_ok):
     app.config["DB_PATH"] = db_path
     app.config["SHARE_OK"] = share_ok
 
+    def _get_web_root():
+        """Return current web_root, checking if it was updated after setup."""
+        wr = app.config["WEB_ROOT"]
+        if wr and os.path.isdir(wr):
+            return wr
+        # Check if config was updated with a valid web_root
+        new_wr = cfg.get("web_root")
+        if new_wr and os.path.isdir(new_wr):
+            app.config["WEB_ROOT"] = new_wr
+            app.config["SHARE_OK"] = True
+            return new_wr
+        return None
+
+    def _serve_embedded_setup():
+        from bootstrap import SETUP_HTML
+        return Response(SETUP_HTML, mimetype='text/html')
+
     # --- Static file serving ---
     @app.route("/")
     def index():
-        # Redirect to setup if config incomplete
+        wr = _get_web_root()
         if not all(cfg.get(k) for k in ("user_id", "target_workbook")):
-            return send_from_directory(web_root, "setup.html")
-        return send_from_directory(web_root, "index.html")
+            return _serve_embedded_setup()
+        if not wr:
+            return _serve_embedded_setup()
+        return send_from_directory(wr, "index.html")
 
     @app.route("/setup")
     def setup():
-        return send_from_directory(web_root, "setup.html")
+        return _serve_embedded_setup()
 
     @app.route("/<path:filename>")
     def static_files(filename):
-        return send_from_directory(web_root, filename)
+        wr = _get_web_root()
+        if not wr:
+            return Response("Setup not complete", status=404)
+        return send_from_directory(wr, filename)
 
     # --- /api/config ---
     @app.route("/api/config", methods=["GET"])
     def get_config():
-        shared_path = os.path.join(web_root, "shared_config.json")
+        wr = _get_web_root()
         shared = {}
-        if os.path.isfile(shared_path):
-            with open(shared_path) as f:
-                shared = json.load(f)
-        # Include version info
-        ver_path = os.path.join(web_root, "version.json")
+        if wr:
+            shared_path = os.path.join(wr, "shared_config.json")
+            if os.path.isfile(shared_path):
+                with open(shared_path) as f:
+                    shared = json.load(f)
         version = {}
-        if os.path.isfile(ver_path):
-            with open(ver_path) as f:
-                version = json.load(f)
+        if wr:
+            ver_path = os.path.join(wr, "version.json")
+            if os.path.isfile(ver_path):
+                with open(ver_path) as f:
+                    version = json.load(f)
         return jsonify({"user": cfg, "shared": shared, "version": version})
 
     @app.route("/api/config", methods=["POST"])
     def update_config():
         updates = request.get_json(force=True)
         cfg.update(updates)
-        from bootstrap import save_config
+        from bootstrap import save_config, sync_cache, CACHE_DIR
         save_config(cfg)
+        # If web_root was just set, sync cache for offline fallback
+        new_wr = updates.get("web_root")
+        if new_wr and os.path.isdir(new_wr):
+            app.config["WEB_ROOT"] = new_wr
+            app.config["SHARE_OK"] = True
+            sync_cache(new_wr)
         return jsonify({"ok": True})
 
     # --- /api/day/{date} ---
@@ -93,11 +123,11 @@ def create_app(cfg, web_root, db_path, share_ok):
 
         config_complete = all(cfg.get(k) for k in ("user_id", "target_workbook", "web_root"))
         return jsonify({
-            "share_reachable": share_ok,
+            "share_reachable": app.config["SHARE_OK"],
             "db_ok": db_ok,
             "config_complete": config_complete,
             "timelog_rows": row_count,
-            "offline_mode": not share_ok
+            "offline_mode": not app.config["SHARE_OK"]
         })
 
     # --- /api/recents/{type} ---
@@ -115,11 +145,13 @@ def create_app(cfg, web_root, db_path, share_ok):
     @app.route("/api/post/<date_iso>", methods=["POST"])
     def post_day_endpoint(date_iso):
         import post
-        shared_path = os.path.join(web_root, "shared_config.json")
+        wr = _get_web_root()
         shared = {}
-        if os.path.isfile(shared_path):
-            with open(shared_path) as f:
-                shared = json.load(f)
+        if wr:
+            shared_path = os.path.join(wr, "shared_config.json")
+            if os.path.isfile(shared_path):
+                with open(shared_path) as f:
+                    shared = json.load(f)
         result = post.post_day(date_iso, cfg, shared, db_path)
         status_code = 200 if result.get('ok') else 400
         return jsonify(result), status_code

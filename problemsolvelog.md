@@ -1,8 +1,42 @@
 # Problem Solve Log — Bootstrap Launch Flow (v2.6.1)
 
 **Date:** 2026-05-15  
-**Status:** UNRESOLVED — carry forward to Monday  
+**Status:** RESOLVED — 2026-05-18  
 **Reporter:** chrlsim  
+
+---
+
+## Resolution (2026-05-18)
+
+**Approach:** Eliminated the dual-setup problem entirely. Embedded the full setup HTML inside `bootstrap.py` as a string literal. Flask serves it from memory with zero file dependencies.
+
+**What changed:**
+- `tier1_setup()` — **deleted**. No more tkinter folder picker for setup.
+- `show_splash()` — kept as a **dumb launch indicator only** (no interaction, no setup logic). Shows "Opening browser..." and auto-closes when Flask is ready.
+- `SETUP_HTML` — full setup wizard embedded as a raw string in `bootstrap.py`. Self-contained CSS (no external stylesheet dependency).
+- `user_id` — `os.getlogin()` runs at top of `main()`, saved to config BEFORE Flask starts. `/api/config` always returns it. Setup page pre-fills from this.
+- `app.py` — `_serve_embedded_setup()` returns the embedded HTML via `Response()`. All routes handle `web_root=None` gracefully. `/api/config POST` syncs cache when `web_root` is newly set.
+
+**New flow:**
+```
+Double-click exe
+  → Splash appears instantly ("Opening browser...")     [~100ms]
+  → os.getlogin() → cfg["user_id"] saved               [instant]
+  → Flask starts (serves embedded setup from memory)    [~300ms]
+  → Browser opens to localhost:5150                     [~500ms]
+  → Splash closes
+  → Setup page renders with username pre-filled
+  → User picks RMAJobLogger folder via /api/browse
+  → Config saved, redirect to / (now served from share)
+```
+
+**Why this works:**
+- No chicken-and-egg: Flask doesn't need web files to show the setup page
+- No tkinter for setup: only the OS folder picker (triggered from browser via `/api/browse`)
+- Single setup path: no more tier1 (native) vs tier2 (web) confusion
+- Username guaranteed: saved before Flask starts, returned by `/api/config` on first request
+
+**Startup time:** ~400ms from Python boot to Flask ready (confirmed in logs). Total user-perceived time: ~2-3s (PyInstaller extraction + browser open).
 
 ---
 
