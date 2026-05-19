@@ -81,6 +81,13 @@ def create_app(cfg, web_root, db_path, share_ok):
             app.config["WEB_ROOT"] = new_wr
             app.config["SHARE_OK"] = True
             sync_cache(new_wr)
+        # Trigger startup sync if sync_target is now configured
+        if cfg.get("sync_target") and cfg.get("user_id"):
+            try:
+                import sync
+                sync.startup_sync(cfg, db_path)
+            except Exception:
+                pass
         return jsonify({"ok": True})
 
     # --- /api/day/{date} ---
