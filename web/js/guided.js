@@ -234,12 +234,15 @@ const Guided = (() => {
   // Quick-add (break/lunch/5s/clock_in/clock_out)
   function quickAdd(type) {
     const blocks = Timeline.getBlocks();
-    const lastEnd = blocks.length > 0 ? blocks[blocks.length - 1].end : '07:00';
+    const lastEnd = blocks.length > 0 ? (blocks[blocks.length - 1].end || blocks[blocks.length - 1].start) : '07:00';
     const durations = { break: 15, lunch: 30, '5s': 30 };
 
     if (type === 'clock_in' || type === 'clock_out') {
-      // Markers: start time only, no end, no further prompts
-      state.start = lastEnd;
+      // Markers: use current time as default
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(Math.round(now.getMinutes() / 5) * 5).padStart(2, '0');
+      state.start = `${hh}:${mm}`;
       state.end = null;
       state.memo = null;
       finish();
