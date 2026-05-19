@@ -330,9 +330,9 @@ def create_app(cfg, web_root, db_path, share_ok):
             if os.path.isfile(shared_path):
                 with open(shared_path) as f:
                     shared = json.load(f)
-        rates = post.calculate_rates(blocks, shared)
-        work_hrs, nonwork_hrs = post.calculate_hours(blocks)
-        return jsonify({"rates": rates, "work_hours": work_hrs, "nonwork_hours": nonwork_hrs})
+        schedule = cfg.get("schedule")
+        report = post.calculate_report(blocks, shared, schedule)
+        return jsonify(report)
 
     # --- /api/sync ---
     @app.route("/api/sync", methods=["POST"])

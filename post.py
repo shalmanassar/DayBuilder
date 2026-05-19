@@ -143,40 +143,131 @@ def calculate_hours(blocks):
 
 
 def calculate_rates(blocks, shared_config):
-    """Calculate rate per device type: qty/production_hours vs quota.
-    Returns list of {device, display, qty, prod_hours, rate, quota, pct}."""
+    """Legacy wrapper — returns old format for backward compat."""
+    report = calculate_report(blocks, shared_config)
+    return report.get('devices', [])
+
+
+def calculate_report(blocks, shared_config, schedule=None):
+    """Full productivity report using quota-hours model.
+
+    Model: qty / quota_per_hour = equivalent production hours for that device.
+    Sum all device hours = total production achieved.
+    Compare to available production hours (shift minus off-clock time).
+
+    Returns dict with devices, off_clock, non_asset, totals.
+    """
     quotas = shared_config.get('quotas', {})
     device_types = {d['id']: d['display'] for d in shared_config.get('device_types', [])}
 
-    # Production hours = total work time (excludes breaks/lunch/clock markers)
-    work_mins = 0
-    for b in blocks:
-        dur = _duration(b)
-        if b.get('type') not in ('break', 'lunch', 'clock_in', 'clock_out') and dur > 0:
-            work_mins += dur
-    prod_hours = work_mins / 60 if work_mins > 0 else 0
+    # Schedule defaults
+    if not schedule:
+        schedule = {}
+    sched_start = schedule.get('default_start', '08:00')
+    sched_end = schedule.get('default_end', '16:30')
+    sched_break_count = schedule.get('break_count', 2)
+    sched_break_min = schedule.get('break_minutes', 15)
+    sched_lunch_min = schedule.get('lunch_minutes', 30)
 
-    # Aggregate qty per device
+    # Scheduled shift and off-clock
+    shift_mins = _time_to_min(sched_end) - _time_to_min(sched_start)
+    scheduled_off = sched_lunch_min + (sched_break_count * sched_break_min)
+    scheduled_prod_mins = shift_mins - scheduled_off
+
+    # Actual clock in/out
+    clock_in_block = next((b for b in blocks if b.get('type') == 'clock_in'), None)
+    clock_out_block = next((b for b in blocks if b.get('type') == 'clock_out'), None)
+    actual_in = clock_in_block.get('start') if clock_in_block else sched_start
+    actual_out = clock_out_block.get('start') if clock_out_block else sched_end
+
+    # Off-clock time detection
+    off_clock = []
+    late_in_mins = max(0, _time_to_min(actual_in) - _time_to_min(sched_start))
+    if late_in_mins > 0:
+        off_clock.append({'label': 'Late clock-in', 'minutes': late_in_mins,
+                          'detail': f"{actual_in} vs scheduled {sched_start}"})
+
+    early_out_mins = max(0, _time_to_min(sched_end) - _time_to_min(actual_out))
+    if early_out_mins > 0:
+        off_clock.append({'label': 'Early clock-out', 'minutes': early_out_mins,
+                          'detail': f"{actual_out} vs scheduled {sched_end}"})
+
+    # Actual break/lunch durations vs scheduled
+    actual_break_mins = sum(_duration(b) for b in blocks if b.get('type') == 'break')
+    actual_lunch_mins = sum(_duration(b) for b in blocks if b.get('type') == 'lunch')
+    expected_break_mins = sched_break_count * sched_break_min
+
+    excess_break = max(0, actual_break_mins - expected_break_mins)
+    if excess_break > 0:
+        off_clock.append({'label': 'Excess break time', 'minutes': excess_break,
+                          'detail': f"{actual_break_mins}m actual vs {expected_break_mins}m scheduled"})
+
+    excess_lunch = max(0, actual_lunch_mins - sched_lunch_min)
+    if excess_lunch > 0:
+        off_clock.append({'label': 'Excess lunch time', 'minutes': excess_lunch,
+                          'detail': f"{actual_lunch_mins}m actual vs {sched_lunch_min}m scheduled"})
+
+    total_off_clock_excess = late_in_mins + early_out_mins + excess_break + excess_lunch
+
+    # Available production hours = scheduled production - off-clock excess
+    available_prod_mins = max(0, scheduled_prod_mins - total_off_clock_excess)
+    available_prod_hrs = available_prod_mins / 60
+
+    # Aggregate qty per device and compute quota-hours
     counts = aggregate_productivity(blocks, shared_config)
+    devices = []
+    total_quota_hrs = 0
 
-    results = []
     for dev_id, qty in counts.items():
         if qty <= 0:
             continue
         quota = quotas.get(dev_id, 0)
-        rate = qty / prod_hours if prod_hours > 0 else 0
-        pct = (rate / quota * 100) if quota > 0 else 0
-        results.append({
+        quota_hrs = (qty / quota) if quota > 0 else 0
+        pct_of_day = (quota_hrs / available_prod_hrs * 100) if available_prod_hrs > 0 else 0
+        total_quota_hrs += quota_hrs
+        devices.append({
             'device': dev_id,
             'display': device_types.get(dev_id, dev_id),
             'qty': qty,
-            'prod_hours': round(prod_hours, 2),
-            'rate': round(rate, 2),
             'quota': quota,
-            'pct': round(pct, 1)
+            'quota_hrs': round(quota_hrs, 2),
+            'pct_of_day': round(pct_of_day, 1)
         })
 
-    return results
+    # Overall production percentage
+    overall_pct = (total_quota_hrs / available_prod_hrs * 100) if available_prod_hrs > 0 else 0
+
+    # Non-asset time breakdown (project, admin, meeting, 5s, learning)
+    non_asset_types = ('project', 'admin', 'meeting', '5s', 'learning')
+    non_asset = []
+    total_non_asset_mins = 0
+    for nat in non_asset_types:
+        mins = sum(_duration(b) for b in blocks if b.get('type') == nat)
+        if mins > 0:
+            pct = (mins / 60 / available_prod_hrs * 100) if available_prod_hrs > 0 else 0
+            non_asset.append({'type': nat, 'label': nat.replace('_', ' ').title(),
+                              'minutes': mins, 'hours': round(mins / 60, 2), 'pct_of_day': round(pct, 1)})
+            total_non_asset_mins += mins
+
+    return {
+        'devices': devices,
+        'off_clock': off_clock,
+        'non_asset': non_asset,
+        'totals': {
+            'shift_hours': round(shift_mins / 60, 2),
+            'scheduled_prod_hours': round(scheduled_prod_mins / 60, 2),
+            'off_clock_excess_mins': total_off_clock_excess,
+            'available_prod_hours': round(available_prod_hrs, 2),
+            'total_quota_hours': round(total_quota_hrs, 2),
+            'overall_pct': round(overall_pct, 1),
+            'non_asset_hours': round(total_non_asset_mins / 60, 2),
+            'non_asset_pct': round((total_non_asset_mins / 60 / available_prod_hrs * 100) if available_prod_hrs > 0 else 0, 1),
+            'actual_in': actual_in,
+            'actual_out': actual_out,
+            'actual_break_mins': actual_break_mins,
+            'actual_lunch_mins': actual_lunch_mins
+        }
+    }
 
 
 def build_comment(blocks):
