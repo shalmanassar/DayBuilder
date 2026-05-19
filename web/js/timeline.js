@@ -210,7 +210,15 @@ const Timeline = (() => {
     pushHistory(); render(); notify();
   }
 
-  function addBlock(block) { if (!block.id) block.id = crypto.randomUUID(); blocks.push(block); pushHistory(); render(); notify(); }
+  function addBlock(block) {
+    if (!block.id) block.id = crypto.randomUUID();
+    // Replace existing clock_in/clock_out instead of duplicating
+    if (block.type === 'clock_in' || block.type === 'clock_out') {
+      blocks = blocks.filter(b => b.type !== block.type);
+    }
+    blocks.push(block);
+    pushHistory(); render(); notify();
+  }
   function deleteBlock(id) { blocks = blocks.filter(b => b.id !== id); pushHistory(); render(); notify(); }
 
   // --- Popover (speech bubble, anchored to block) ---
