@@ -326,15 +326,26 @@ footer {
   color: var(--danger);
 }
 
-/* Edit popover */
+/* Edit popover — speech bubble */
 .tl-popover {
-  position: relative;
+  position: fixed;
   background: var(--bg-card);
   border: 1px solid var(--accent);
   border-radius: 8px;
-  padding: 1rem;
-  margin: 0.5rem 0;
-  z-index: 100;
+  padding: 0.75rem;
+  z-index: 2000;
+  width: 240px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.tl-popover .pop-arrow {
+  position: absolute;
+  left: -8px;
+  top: 12px;
+  width: 0; height: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid var(--accent);
 }
 
 .tl-popover label {
