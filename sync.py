@@ -180,6 +180,16 @@ def sync_user_db(cfg, local_db_path):
     user_id = cfg.get("user_id")
     if not sync_target or not user_id or not os.path.isdir(sync_target):
         return False
+    # Don't overwrite remote with an empty local DB
+    try:
+        conn = sqlite3.connect(local_db_path, timeout=5)
+        local_rows = conn.execute("SELECT COUNT(*) FROM TimeLogTable").fetchone()[0]
+        conn.close()
+        if local_rows == 0:
+            logger.info("Skipping remote sync — local DB is empty")
+            return False
+    except Exception:
+        return False
     dest = os.path.join(sync_target, f"{user_id}_timelog.db")
     try:
         shutil.copy2(local_db_path, dest)
