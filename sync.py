@@ -272,8 +272,70 @@ def _sync_local_remote(cfg, local_db_path, remote_user_path):
     except Exception as e:
         logger.warning(f"Push to remote user DB failed: {e}")
 
-    logger.info(f"Startup sync: pulled {pulled} from remote, pushed {pushed} to remote")
+    # Sync DayDraft both directions
+    draft_pulled, draft_pushed = _sync_drafts(local_db_path, remote_user_path)
+
+    logger.info(f"Startup sync: pulled {pulled} rows + {draft_pulled} drafts from remote, pushed {pushed} rows + {draft_pushed} drafts to remote")
     return True, None
+
+
+def _sync_drafts(local_db_path, remote_user_path):
+    """Bidirectional DayDraft sync: pull missing from remote, push missing to remote."""
+    pulled = pushed = 0
+    try:
+        rconn = sqlite3.connect(remote_user_path, timeout=10)
+        rconn.row_factory = sqlite3.Row
+        lconn = sqlite3.connect(local_db_path, timeout=10)
+        lconn.row_factory = sqlite3.Row
+
+        # Ensure DayDraft table exists in remote
+        rconn.execute("""CREATE TABLE IF NOT EXISTS DayDraft (
+            date TEXT PRIMARY KEY, blocks TEXT, posted INTEGER DEFAULT 0, posted_at TEXT)""")
+        rconn.commit()
+
+        # Pull from remote into local
+        remote_drafts = rconn.execute("SELECT date, blocks, posted, posted_at FROM DayDraft").fetchall()
+        for d in remote_drafts:
+            try:
+                lconn.execute("INSERT INTO DayDraft (date, blocks, posted, posted_at) VALUES (?,?,?,?)",
+                              (d["date"], d["blocks"], d["posted"], d["posted_at"]))
+                pulled += 1
+            except sqlite3.IntegrityError:
+                # Local already has this date — keep the one with more data or posted status
+                local_d = lconn.execute("SELECT posted, length(blocks) as blen FROM DayDraft WHERE date=?", (d["date"],)).fetchone()
+                remote_blen = len(d["blocks"]) if d["blocks"] else 0
+                local_blen = local_d["blen"] if local_d else 0
+                if d["posted"] and not local_d["posted"]:
+                    lconn.execute("UPDATE DayDraft SET blocks=?, posted=?, posted_at=? WHERE date=?",
+                                  (d["blocks"], d["posted"], d["posted_at"], d["date"]))
+                elif remote_blen > local_blen and not local_d["posted"]:
+                    lconn.execute("UPDATE DayDraft SET blocks=? WHERE date=?", (d["blocks"], d["date"]))
+        lconn.commit()
+
+        # Push from local to remote
+        local_drafts = lconn.execute("SELECT date, blocks, posted, posted_at FROM DayDraft").fetchall()
+        for d in local_drafts:
+            try:
+                rconn.execute("INSERT INTO DayDraft (date, blocks, posted, posted_at) VALUES (?,?,?,?)",
+                              (d["date"], d["blocks"], d["posted"], d["posted_at"]))
+                pushed += 1
+            except sqlite3.IntegrityError:
+                remote_d = rconn.execute("SELECT posted, length(blocks) as blen FROM DayDraft WHERE date=?", (d["date"],)).fetchone()
+                local_blen = len(d["blocks"]) if d["blocks"] else 0
+                remote_blen = remote_d["blen"] if remote_d else 0
+                if d["posted"] and not remote_d["posted"]:
+                    rconn.execute("UPDATE DayDraft SET blocks=?, posted=?, posted_at=? WHERE date=?",
+                                  (d["blocks"], d["posted"], d["posted_at"], d["date"]))
+                elif local_blen > remote_blen and not remote_d["posted"]:
+                    rconn.execute("UPDATE DayDraft SET blocks=? WHERE date=?", (d["blocks"], d["date"]))
+        rconn.commit()
+
+        lconn.close()
+        rconn.close()
+    except Exception as e:
+        logger.warning(f"DayDraft sync failed: {e}")
+
+    return pulled, pushed
 
 
 def _initial_bootstrap(cfg, local_db_path, remote_user_path):
