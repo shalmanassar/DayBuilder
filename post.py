@@ -234,25 +234,42 @@ def calculate_report(blocks, shared_config, schedule=None):
             'pct_of_day': round(pct_of_day, 1)
         })
 
-    # Overall production percentage
+    # Overall production percentage (against full available time)
     overall_pct = (total_quota_hrs / available_prod_hrs * 100) if available_prod_hrs > 0 else 0
 
-    # Non-asset time breakdown (project, admin, meeting, 5s, learning)
+    # Non-asset time breakdown — individual blocks with detail
     non_asset_types = ('project', 'admin', 'meeting', '5s', 'learning')
     non_asset = []
     total_non_asset_mins = 0
-    for nat in non_asset_types:
-        mins = sum(_duration(b) for b in blocks if b.get('type') == nat)
-        if mins > 0:
-            pct = (mins / 60 / available_prod_hrs * 100) if available_prod_hrs > 0 else 0
-            non_asset.append({'type': nat, 'label': nat.replace('_', ' ').title(),
-                              'minutes': mins, 'hours': round(mins / 60, 2), 'pct_of_day': round(pct, 1)})
-            total_non_asset_mins += mins
+    for b in blocks:
+        if b.get('type') in non_asset_types:
+            dur = _duration(b)
+            if dur > 0:
+                non_asset.append({
+                    'type': b['type'],
+                    'label': b['type'].replace('_', ' ').title(),
+                    'memo': b.get('memo') or '',
+                    'start': b.get('start'),
+                    'end': b.get('end'),
+                    'minutes': dur,
+                    'hours': round(dur / 60, 2)
+                })
+                total_non_asset_mins += dur
+
+    # Adjusted production goal: deduct non-asset time from available
+    adjusted_prod_mins = max(0, available_prod_mins - total_non_asset_mins)
+    adjusted_prod_hrs = adjusted_prod_mins / 60
+    adjusted_pct = (total_quota_hrs / adjusted_prod_hrs * 100) if adjusted_prod_hrs > 0 else 0
+
+    # Synopsis
+    synopsis = _build_synopsis(blocks, devices, non_asset, off_clock, total_quota_hrs,
+                               adjusted_prod_hrs, adjusted_pct, actual_in, actual_out, sched_start, sched_end)
 
     return {
         'devices': devices,
         'off_clock': off_clock,
         'non_asset': non_asset,
+        'synopsis': synopsis,
         'totals': {
             'shift_hours': round(shift_mins / 60, 2),
             'scheduled_prod_hours': round(scheduled_prod_mins / 60, 2),
@@ -260,6 +277,8 @@ def calculate_report(blocks, shared_config, schedule=None):
             'available_prod_hours': round(available_prod_hrs, 2),
             'total_quota_hours': round(total_quota_hrs, 2),
             'overall_pct': round(overall_pct, 1),
+            'adjusted_prod_hours': round(adjusted_prod_hrs, 2),
+            'adjusted_pct': round(adjusted_pct, 1),
             'non_asset_hours': round(total_non_asset_mins / 60, 2),
             'non_asset_pct': round((total_non_asset_mins / 60 / available_prod_hrs * 100) if available_prod_hrs > 0 else 0, 1),
             'actual_in': actual_in,
@@ -268,6 +287,50 @@ def calculate_report(blocks, shared_config, schedule=None):
             'actual_lunch_mins': actual_lunch_mins
         }
     }
+
+
+def _build_synopsis(blocks, devices, non_asset, off_clock, total_quota_hrs,
+                    adjusted_prod_hrs, adjusted_pct, actual_in, actual_out, sched_start, sched_end):
+    """Generate a human-readable daily synopsis from block data."""
+    parts = []
+
+    # Clock in/out note
+    if actual_in != sched_start:
+        diff = _time_to_min(actual_in) - _time_to_min(sched_start)
+        if diff > 0:
+            parts.append(f"Clocked in at {actual_in} ({diff}m late)")
+        else:
+            parts.append(f"Clocked in at {actual_in} ({-diff}m early)")
+    else:
+        parts.append(f"Clocked in on time at {actual_in}")
+
+    # Device production
+    if devices:
+        dev_parts = [f"{d['qty']} {d['display']}" for d in devices]
+        parts.append("Processed " + ", ".join(dev_parts))
+
+    # Non-asset activities
+    if non_asset:
+        for na in non_asset:
+            memo = f" ({na['memo']})" if na['memo'] else ''
+            parts.append(f"{na['minutes']}m {na['label']}{memo}")
+
+    # Off-clock notes
+    for oc in off_clock:
+        if 'Excess' in oc['label']:
+            parts.append(f"{oc['minutes']}m {oc['label'].lower()}")
+
+    # Result
+    parts.append(f"Achieved {round(adjusted_pct, 1)}% adjusted production goal ({round(total_quota_hrs, 2)}h of {round(adjusted_prod_hrs, 2)}h)")
+
+    if actual_out != sched_end:
+        diff = _time_to_min(sched_end) - _time_to_min(actual_out)
+        if diff > 0:
+            parts.append(f"Clocked out at {actual_out} ({diff}m early)")
+        else:
+            parts.append(f"Clocked out at {actual_out} ({-diff}m late)")
+
+    return ". ".join(parts) + "."
 
 
 def build_comment(blocks):
