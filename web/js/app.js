@@ -224,4 +224,11 @@
 
   // Settings button
   btnSettings.addEventListener('click', () => { Settings.open(); });
+
+  // Title bar exit button
+  document.getElementById('titleBarExit').addEventListener('click', async () => {
+    if (!confirm('Exit DayBuilder?')) return;
+    await fetch('/api/shutdown', { method: 'POST' });
+    document.body.innerHTML = '<div style="text-align:center;padding:4rem;color:#8ab4c7"><h1>DayBuilder closed</h1><p>You can close this tab.</p></div>';
+  });
 })();

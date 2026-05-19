@@ -107,7 +107,7 @@ SETUP_HTML = r"""<!DOCTYPE html>
 :root{--bg-deep:#02090f;--bg-header:#123d52;--bg-card:#1a2a35;--bg-surface:#1e3a4a;--text-primary:#e8f4f8;--text-muted:#8ab4c7;--accent:#3498db;--accent-hover:#2980b9;--success:#27ae60;--warning:#f39c12;--danger:#e74c3c;--border:#2c4a5a}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-deep);color:var(--text-primary);min-height:100vh;display:flex;align-items:center;justify-content:center}
-.setup-container{max-width:480px;width:100%;padding:2rem;background:var(--bg-card);border:1px solid var(--border);border-radius:12px}
+.setup-container{max-width:480px;width:100%;padding:2rem;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;position:relative}
 .setup-container h1{margin-bottom:0.5rem}
 .setup-container p.sub{color:var(--text-muted);margin-bottom:1.5rem}
 .setup-step{display:none}.setup-step.active{display:block}
@@ -138,6 +138,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-deep);color
 <body>
 <div class="setup-container">
 <h1>&#9728; DayBuilder Setup</h1>
+<button onclick="fetch('/api/shutdown',{method:'POST'}).then(()=>{document.body.innerHTML='<div style=text-align:center;padding:4rem;color:#8ab4c7><h1>Closed</h1></div>'})" style="position:absolute;top:1rem;right:1rem;background:none;border:1px solid var(--border);color:var(--danger);padding:0.3rem 0.7rem;border-radius:4px;cursor:pointer">✕ Exit</button>
 <p class="sub">Let's get you configured.</p>
 
 <!-- Step 1: Username -->
