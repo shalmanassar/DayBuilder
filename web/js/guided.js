@@ -40,6 +40,7 @@ const Guided = (() => {
 
     switch (step) {
       case 'type': renderTypeStep(content); break;
+      case 'clocktime': renderClockTimeStep(content); break;
       case 'path': renderPathStep(content); break;
       case 'device': renderDeviceStep(content); break;
       case 'qty': renderQtyStep(content); break;
@@ -86,6 +87,27 @@ const Guided = (() => {
   }
 
   // Step 2 (Asset Processing): Which path?
+  // Clock time picker step
+  function renderClockTimeStep(el) {
+    const label = state.type === 'clock_in' ? 'Clock In' : 'Clock Out';
+    el.innerHTML = `
+      <h2>${label} Time</h2>
+      <input type="time" class="guided-memo-input" id="clockTimeInput" step="60" autofocus>
+      <button class="guided-btn guided-done" style="margin-top:1rem">Set ${label} ✓</button>
+      <button class="guided-back">← Back</button>
+    `;
+    el.querySelector('.guided-back').onclick = () => showStep('type');
+    el.querySelector('.guided-done').onclick = () => {
+      const val = document.getElementById('clockTimeInput').value;
+      if (!val) return;
+      state.start = val;
+      state.end = null;
+      state.memo = null;
+      finish();
+    };
+  }
+
+
   async function renderPathStep(el) {
     await loadConfig();
     el.innerHTML = `<h2>Which path?</h2><div class="guided-grid"></div><button class="guided-back">← Back</button>`;
@@ -238,14 +260,9 @@ const Guided = (() => {
     const durations = { break: 15, lunch: 30, '5s': 30 };
 
     if (type === 'clock_in' || type === 'clock_out') {
-      // Markers: use current time as default
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, '0');
-      const mm = String(Math.round(now.getMinutes() / 5) * 5).padStart(2, '0');
-      state.start = `${hh}:${mm}`;
-      state.end = null;
-      state.memo = null;
-      finish();
+      // Markers: prompt for time
+      state.type = type;
+      showStep('clocktime');
       return;
     }
 
