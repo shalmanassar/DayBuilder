@@ -25,6 +25,15 @@ const Guided = (() => {
 
   function close() {
     if (modal) { modal.remove(); modal = null; }
+    document.removeEventListener('keydown', modalKeyHandler);
+  }
+
+  function modalKeyHandler(e) {
+    if (e.key === 'Escape') { close(); }
+    if (e.key === 'Enter') {
+      const btn = modal && modal.querySelector('.guided-done, .guided-next, .guided-btn.guided-done');
+      if (btn) btn.click();
+    }
   }
 
   function showStep(step) {
@@ -32,9 +41,8 @@ const Guided = (() => {
     modal = document.createElement('div');
     modal.className = 'guided-overlay';
     modal.innerHTML = '<div class="guided-modal"><div class="guided-content"></div></div>';
-    modal.querySelector('.guided-overlay, .guided-modal').addEventListener('click', (e) => {
-      if (e.target === modal) close();
-    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', modalKeyHandler);
     document.body.appendChild(modal);
     const content = modal.querySelector('.guided-content');
 

@@ -119,6 +119,7 @@ const Timeline = (() => {
       el.classList.add('tl-marker');
       el.style.top = top + 'px';
       el.style.borderTopColor = color;
+      el.style.zIndex = '10';
       el.innerHTML = `<span class="tl-marker-time">${fmtTime(block.start)}</span><span class="tl-marker-label">${label}</span>`;
       el.addEventListener('click', (e) => { e.stopPropagation(); showPopover(block, el); });
       return el;
@@ -247,12 +248,13 @@ const Timeline = (() => {
     pop.querySelector('.pop-delete').onclick = () => { deleteBlock(block.id); closePopover(); };
     pop.querySelector('.pop-close').onclick = closePopover;
     document.body.appendChild(pop);
-    // Close on outside click
-    setTimeout(() => document.addEventListener('click', outsideClose), 0);
+    // Close on outside click or Escape
+    setTimeout(() => { document.addEventListener('click', outsideClose); document.addEventListener('keydown', popKeyHandler); }, 0);
   }
 
   function outsideClose(e) { if (!e.target.closest('.tl-popover')) closePopover(); }
-  function closePopover() { document.removeEventListener('click', outsideClose); const p = document.querySelector('.tl-popover'); if (p) p.remove(); }
+  function popKeyHandler(e) { if (e.key === 'Escape') closePopover(); }
+  function closePopover() { document.removeEventListener('click', outsideClose); document.removeEventListener('keydown', popKeyHandler); const p = document.querySelector('.tl-popover'); if (p) p.remove(); }
 
   function onContextMenu(e) { const el = e.target.closest('.tl-block'); if (!el) return; e.preventDefault(); if (confirm('Delete this block?')) deleteBlock(el.dataset.id); }
 
