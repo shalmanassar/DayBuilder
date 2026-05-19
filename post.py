@@ -406,8 +406,9 @@ def write_workbook(target_path, sheet_name, date_iso, blocks, shared_config):
     ws[f"{col_letter}22"] = work_hours
     ws[f"{col_letter}23"] = nonwork_hours
 
-    # Write comment
-    comment = build_comment(blocks)
+    # Write comment (use report synopsis)
+    report = calculate_report(blocks, shared_config)
+    comment = report.get('synopsis', '') or build_comment(blocks)
     ws[f"B{comment_row}"] = comment
 
     try:
