@@ -341,6 +341,71 @@ def create_app(cfg, web_root, db_path, share_ok):
         report = post.calculate_report(blocks, shared, schedule)
         return jsonify(report)
 
+    # --- /api/rates/week ---
+    @app.route("/api/rates/week", methods=["POST"])
+    def get_rates_week():
+        import post
+        from datetime import date as _date, timedelta
+        data = request.get_json(force=True)
+        # Accept a date (any day in the week) — find Mon-Fri
+        ref_date = data.get("date", _date.today().isoformat())
+        d = _date.fromisoformat(ref_date)
+        monday = d - timedelta(days=d.weekday())
+        wr = _get_web_root()
+        shared = {}
+        if wr:
+            shared_path = os.path.join(wr, "shared_config.json")
+            if os.path.isfile(shared_path):
+                with open(shared_path) as f:
+                    shared = json.load(f)
+        schedule = cfg.get("schedule")
+        user_id = cfg.get("user_id", "")
+
+        days = []
+        for i in range(5):
+            day_iso = (monday + timedelta(days=i)).isoformat()
+            # Get blocks for this day (same logic as get_day)
+            draft = db.get_draft(day_iso, db_path)
+            if draft and draft.get("blocks"):
+                blocks = draft["blocks"]
+            else:
+                jdn = db.iso_to_jdn(day_iso)
+                rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
+                blocks = _master_rows_to_blocks(rows) if rows else []
+            report = post.calculate_report(blocks, shared, schedule) if blocks else None
+            days.append({"date": day_iso, "blocks": len(blocks), "report": report})
+
+        # Aggregate week totals
+        week_totals = {"total_quota_hours": 0, "available_prod_hours": 0, "adjusted_prod_hours": 0,
+                       "non_asset_hours": 0, "off_clock_excess_mins": 0, "devices": {}}
+        synopses = []
+        for day in days:
+            r = day.get("report")
+            if not r:
+                continue
+            t = r["totals"]
+            week_totals["total_quota_hours"] += t["total_quota_hours"]
+            week_totals["available_prod_hours"] += t["available_prod_hours"]
+            week_totals["adjusted_prod_hours"] += t["adjusted_prod_hours"]
+            week_totals["non_asset_hours"] += t["non_asset_hours"]
+            week_totals["off_clock_excess_mins"] += t["off_clock_excess_mins"]
+            for dev in r["devices"]:
+                did = dev["device"]
+                if did not in week_totals["devices"]:
+                    week_totals["devices"][did] = {"display": dev["display"], "qty": 0, "quota": dev["quota"], "quota_hrs": 0}
+                week_totals["devices"][did]["qty"] += dev["qty"]
+                week_totals["devices"][did]["quota_hrs"] += dev["quota_hrs"]
+            if r.get("synopsis"):
+                synopses.append({"date": day["date"], "synopsis": r["synopsis"]})
+
+        week_totals["overall_pct"] = round(week_totals["total_quota_hours"] / week_totals["available_prod_hours"] * 100, 1) if week_totals["available_prod_hours"] > 0 else 0
+        week_totals["adjusted_pct"] = round(week_totals["total_quota_hours"] / week_totals["adjusted_prod_hours"] * 100, 1) if week_totals["adjusted_prod_hours"] > 0 else 0
+        # Round accumulated floats
+        for k in ("total_quota_hours", "available_prod_hours", "adjusted_prod_hours", "non_asset_hours"):
+            week_totals[k] = round(week_totals[k], 2)
+
+        return jsonify({"week_of": monday.isoformat(), "days": days, "totals": week_totals, "synopses": synopses})
+
     # --- /api/sync ---
     @app.route("/api/sync", methods=["POST"])
     def sync_to_master():

@@ -219,6 +219,9 @@
   // Report button
   btnReport.addEventListener('click', () => { Report.show(Timeline.getBlocks()); });
 
+  // Weekly report button
+  document.getElementById('btnWeekReport').addEventListener('click', () => { Report.showWeek(currentDate); });
+
   // Clipboard
   btnClipboard.addEventListener('click', () => { Report.show(Timeline.getBlocks()); });
 
