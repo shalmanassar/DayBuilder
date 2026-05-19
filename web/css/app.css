@@ -367,6 +367,26 @@ footer {
   font-size: 0.9rem;
 }
 
+.pop-split {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.pop-split label { flex: 1; }
+.pop-split-btn {
+  padding: 0.4rem 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pop-split-btn:hover { background: var(--warning); color: #000; }
+
 .pop-actions {
   display: flex;
   gap: 0.5rem;

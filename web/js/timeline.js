@@ -222,6 +222,15 @@ const Timeline = (() => {
   }
   function deleteBlock(id) { blocks = blocks.filter(b => b.id !== id); pushHistory(); render(); notify(); }
 
+  function splitBlock(block, splitTime) {
+    const idx = blocks.findIndex(b => b.id === block.id);
+    if (idx < 0) return;
+    const b1 = { ...block, id: crypto.randomUUID(), end: splitTime };
+    const b2 = { ...block, id: crypto.randomUUID(), start: splitTime, qty: null };
+    blocks.splice(idx, 1, b1, b2);
+    pushHistory(); render(); notify();
+  }
+
   // --- Popover (speech bubble, anchored to block) ---
   function showPopover(block, anchorEl) {
     closePopover();
@@ -235,6 +244,7 @@ const Timeline = (() => {
     pop.style.top = rect.top + 'px';
 
     const isM = isMarker(block);
+    const midTime = (!isM && block.start && block.end) ? minToTime(Math.round((timeToMin(block.start) + timeToMin(block.end)) / 2 / SNAP) * SNAP) : '';
     pop.innerHTML = `
       <div class="pop-arrow"></div>
       <label>Type<select class="pop-type">${Object.entries(TYPE_LABELS).map(([k,v]) => `<option value="${k}" ${k===block.type?'selected':''}>${v}</option>`).join('')}</select></label>
@@ -242,11 +252,21 @@ const Timeline = (() => {
       <label>Start<input class="pop-start" type="time" value="${block.start||''}" step="300"></label>
       ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}" step="300"></label>` : ''}
       <label>Memo<input class="pop-memo" value="${block.memo||''}"></label>
+      ${!isM && block.start && block.end ? `<div class="pop-split"><label>Split at<input class="pop-split-time" type="time" value="${midTime}" step="300"></label><button class="pop-split-btn">✂ Split</button></div>` : ''}
       <div class="pop-actions"><button class="pop-save">Save</button><button class="pop-delete">Delete</button><button class="pop-close">✕</button></div>
     `;
     pop.querySelector('.pop-save').onclick = () => { block.type = pop.querySelector('.pop-type').value; block.device = pop.querySelector('.pop-device')?.value || null; block.qty = parseInt(pop.querySelector('.pop-qty')?.value) || null; block.start = pop.querySelector('.pop-start').value || null; block.end = pop.querySelector('.pop-end')?.value || null; block.memo = pop.querySelector('.pop-memo').value || null; updateBlock(block, true); closePopover(); };
     pop.querySelector('.pop-delete').onclick = () => { deleteBlock(block.id); closePopover(); };
     pop.querySelector('.pop-close').onclick = closePopover;
+    const splitBtn = pop.querySelector('.pop-split-btn');
+    if (splitBtn) {
+      splitBtn.onclick = () => {
+        const splitTime = pop.querySelector('.pop-split-time').value;
+        if (!splitTime || splitTime <= block.start || splitTime >= block.end) return;
+        splitBlock(block, splitTime);
+        closePopover();
+      };
+    }
     document.body.appendChild(pop);
     // Close on outside click or Escape
     setTimeout(() => { document.addEventListener('click', outsideClose); document.addEventListener('keydown', popKeyHandler); }, 0);
