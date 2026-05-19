@@ -64,7 +64,7 @@ const Report = (() => {
     const nonAsset = data.non_asset || [];
     const t = data.totals || {};
     const synopsis = data.synopsis || '';
-    const adjColor = t.adjusted_pct >= 100 ? 'var(--success)' : t.adjusted_pct >= 75 ? 'var(--warning)' : 'var(--danger)';
+    const adjColor = t.adjusted_pct >= 100 ? '#27ae60' : t.adjusted_pct >= 75 ? '#f39c12' : '#e74c3c';
 
     let deviceRows = devices.length === 0
       ? '<tr><td colspan="4" style="color:var(--text-muted)">No device data</td></tr>'
@@ -78,13 +78,13 @@ const Report = (() => {
       <p style="font-size:0.85rem;color:var(--text-muted)">${t.non_asset_hours}h non-production → adjusted target: ${t.adjusted_prod_hours}h</p>` : '';
 
     return `
-      <h2>Daily Productivity Report</h2>
-      <div class="report-summary" style="text-align:center;margin:1rem 0;padding:1rem;background:var(--bg-deep);border-radius:8px">
-        <div style="font-size:2.2rem;font-weight:700;color:${adjColor}">${t.adjusted_pct}%</div>
-        <div style="font-weight:600">Adjusted Production Goal</div>
-        <div style="font-size:0.85rem;color:var(--text-muted)">${t.total_quota_hours}h produced of ${t.adjusted_prod_hours}h required</div>
-        <div style="font-size:0.8rem;color:var(--text-muted)">Full day: ${t.overall_pct}% of ${t.available_prod_hours}h</div>
+      <div class="report-header"><h2>Daily Productivity Report</h2><span class="report-user">${getUsername()}</span></div>
+      <div class="report-summary" style="text-align:center;margin:0.75rem 0;padding:0.75rem;border:1px solid var(--border);border-radius:6px">
+        <div style="font-size:1.8rem;font-weight:700;color:${adjColor}">${t.adjusted_pct}%</div>
+        <div style="font-size:0.9rem;font-weight:500">Adjusted Production Goal</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">${t.total_quota_hours}h produced of ${t.adjusted_prod_hours}h required | Full day: ${t.overall_pct}% of ${t.available_prod_hours}h</div>
       </div>
+      ${synopsis ? `<p class="report-synopsis" style="font-style:italic;margin:0.5rem 0 1rem;padding:0.5rem 0.75rem;border-left:3px solid var(--border);line-height:1.5;font-size:0.9rem">${synopsis}</p>` : ''}
       <h3>Device Production</h3>
       <table class="report-table"><tr><th>Device</th><th>Calc</th><th>Quota Hrs</th><th>% Day</th></tr>${deviceRows}</table>
       ${nonAssetHtml}${offClockHtml}
@@ -94,8 +94,7 @@ const Report = (() => {
         <tr><td>Available</td><td>${t.available_prod_hours}h</td></tr>
         <tr><td>Adjusted</td><td>${t.adjusted_prod_hours}h</td></tr>
         <tr><td>Breaks/Lunch</td><td>${t.actual_break_mins}m / ${t.actual_lunch_mins}m</td></tr>
-      </table>
-      ${synopsis ? `<h3>Synopsis</h3><p style="font-style:italic;background:var(--bg-deep);padding:0.75rem;border-radius:6px;line-height:1.5">${synopsis}</p>` : ''}`;
+      </table>`;
   }
 
   // --- Weekly HTML ---
@@ -103,7 +102,7 @@ const Report = (() => {
     const t = data.totals || {};
     const days = data.days || [];
     const synopses = data.synopses || [];
-    const adjColor = t.adjusted_pct >= 100 ? 'var(--success)' : t.adjusted_pct >= 75 ? 'var(--warning)' : 'var(--danger)';
+    const adjColor = t.adjusted_pct >= 100 ? '#27ae60' : t.adjusted_pct >= 75 ? '#f39c12' : '#e74c3c';
     const dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
 
     // Device totals
@@ -116,7 +115,7 @@ const Report = (() => {
     let dayRows = days.map((d, i) => {
       if (!d.report) return `<tr><td>${dayNames[i]}</td><td colspan="3" style="color:var(--text-muted)">No data</td></tr>`;
       const r = d.report.totals;
-      const c = r.adjusted_pct >= 100 ? 'var(--success)' : r.adjusted_pct >= 75 ? 'var(--warning)' : 'var(--danger)';
+      const c = r.adjusted_pct >= 100 ? '#27ae60' : r.adjusted_pct >= 75 ? '#f39c12' : '#e74c3c';
       return `<tr><td>${dayNames[i]}</td><td>${r.total_quota_hours}h</td><td>${r.adjusted_prod_hours}h</td><td style="color:${c};font-weight:700">${r.adjusted_pct}%</td></tr>`;
     }).join('');
 
@@ -127,19 +126,17 @@ const Report = (() => {
     }).join('') : '<p style="color:var(--text-muted)">No synopses available</p>';
 
     return `
-      <h2>Weekly Report — w/o ${data.week_of}</h2>
-      <div class="report-summary" style="text-align:center;margin:1rem 0;padding:1rem;background:var(--bg-deep);border-radius:8px">
-        <div style="font-size:2.2rem;font-weight:700;color:${adjColor}">${t.adjusted_pct}%</div>
-        <div style="font-weight:600">Weekly Adjusted Goal</div>
-        <div style="font-size:0.85rem;color:var(--text-muted)">${t.total_quota_hours}h produced of ${t.adjusted_prod_hours}h required</div>
-        <div style="font-size:0.8rem;color:var(--text-muted)">Full week: ${t.overall_pct}% of ${t.available_prod_hours}h | Non-prod: ${t.non_asset_hours}h | Off-clock: ${t.off_clock_excess_mins}m</div>
+      <div class="report-header"><h2>Weekly Report — w/o ${data.week_of}</h2><span class="report-user">${getUsername()}</span></div>
+      <div class="report-summary" style="text-align:center;margin:0.75rem 0;padding:0.75rem;border:1px solid var(--border);border-radius:6px">
+        <div style="font-size:1.8rem;font-weight:700;color:${adjColor}">${t.adjusted_pct}%</div>
+        <div style="font-size:0.9rem;font-weight:500">Weekly Adjusted Goal</div>
+        <div style="font-size:0.8rem;color:var(--text-muted)">${t.total_quota_hours}h produced of ${t.adjusted_prod_hours}h required | Full: ${t.overall_pct}% of ${t.available_prod_hours}h | Non-prod: ${t.non_asset_hours}h</div>
       </div>
+      <div style="font-size:0.9rem;line-height:1.6;margin:0.5rem 0 1rem;padding:0.5rem 0.75rem;border-left:3px solid var(--border)">${synHtml}</div>
       <h3>Per-Day Breakdown</h3>
       <table class="report-table"><tr><th>Day</th><th>Produced</th><th>Target</th><th>Goal %</th></tr>${dayRows}</table>
       <h3>Device Totals</h3>
-      <table class="report-table"><tr><th>Device</th><th>Qty</th><th>Quota Hrs</th><th>Quota</th></tr>${deviceRows}</table>
-      <h3>Daily Synopses</h3>
-      <div style="font-size:0.9rem;line-height:1.6;background:var(--bg-deep);padding:0.75rem;border-radius:6px">${synHtml}</div>`;
+      <table class="report-table"><tr><th>Device</th><th>Qty</th><th>Quota Hrs</th><th>Quota</th></tr>${deviceRows}</table>`;
   }
 
   // --- Clipboard builders ---
@@ -167,21 +164,29 @@ const Report = (() => {
     return lines.join('\n');
   }
 
+  // --- Username from title bar ---
+  function getUsername() {
+    const el = document.getElementById('titleBarUser');
+    return el ? el.textContent.replace('USER: ', '') : '';
+  }
+
   // --- Print CSS for 8.5x11 ---
   function getPrintCSS() {
     return `
       @page { size: letter; margin: 0.75in; }
       body { font-family: 'Segoe UI', sans-serif; font-size: 11pt; color: #1a1a1a; line-height: 1.4; }
-      h2 { font-size: 16pt; margin-bottom: 0.5rem; }
+      .report-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+      .report-header h2 { font-size: 16pt; margin: 0; }
+      .report-user { font-size: 11pt; font-weight: 600; }
       h3 { font-size: 12pt; margin: 1rem 0 0.3rem; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
-      .report-summary { text-align: center; margin: 1rem 0; padding: 1rem; border: 2px solid #333; border-radius: 8px; }
-      .report-summary div:first-child { font-size: 28pt; font-weight: 700; }
+      .report-summary { text-align: center; margin: 0.5rem 0; padding: 0.6rem; border: 1px solid #999; border-radius: 6px; }
+      .report-summary div:first-child { font-size: 24pt; font-weight: 700; }
+      .report-synopsis { font-style: italic; margin: 0.4rem 0 0.8rem; padding: 0.4rem 0.6rem; border-left: 3px solid #999; }
       table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 10pt; }
       th, td { padding: 4px 8px; border: 1px solid #ddd; text-align: left; }
       th { background: #f0f0f0; font-weight: 600; }
       p { margin: 0.3rem 0; }
       .no-print, .report-actions { display: none !important; }
-      [style*="var(--"] { color: inherit !important; }
     `;
   }
 
