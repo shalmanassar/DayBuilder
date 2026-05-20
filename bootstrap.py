@@ -418,7 +418,7 @@ def main():
     # Open browser in app mode (dedicated window, no tabs/address bar)
     url = f"http://localhost:{port}"
     import subprocess, shutil
-    browser_opened = False
+    browser_proc = None
     for browser in [
         shutil.which("chrome"),
         shutil.which("chromium"),
@@ -430,11 +430,11 @@ def main():
         os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
     ]:
         if browser and os.path.isfile(browser):
-            subprocess.Popen([browser, f"--app={url}"])
-            browser_opened = True
+            browser_proc = subprocess.Popen([browser, f"--app={url}", "--window-size=480,900", "--window-position=100,50"])
             break
-    if not browser_opened:
+    if not browser_proc:
         webbrowser.open(url)
+    app.config["BROWSER_PROC"] = browser_proc
     if splash:
         splash.destroy()
     logger.info(f"Serving on port {port}, web_root={serve_from}")

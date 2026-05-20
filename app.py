@@ -436,7 +436,13 @@ def create_app(cfg, web_root, db_path, share_ok):
         if rows:
             sync.append_to_master(cfg, rows)
         sync.sync_user_db(cfg, db_path)
-        # Shutdown Flask
+        # Kill browser window and shutdown Flask
+        proc = app.config.get("BROWSER_PROC")
+        if proc:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
         import threading
         threading.Thread(target=lambda: (os._exit(0))).start()
         return jsonify({"ok": True})
