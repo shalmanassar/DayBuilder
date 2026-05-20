@@ -440,7 +440,9 @@ def create_app(cfg, web_root, db_path, share_ok):
         proc = app.config.get("BROWSER_PROC")
         if proc:
             try:
-                proc.terminate()
+                import subprocess
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                               capture_output=True)
             except Exception:
                 pass
         import threading
