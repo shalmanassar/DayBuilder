@@ -119,12 +119,13 @@ def aggregate_productivity(blocks, shared_config):
             if dev in counts:
                 counts[dev] += block['qty']
 
-        # Event counts (RTV_Events, Prov_Events)
+        # Event counts (RTV_Events, Prov_Events) — count qty processed, not just 1
         if block.get('subtype') and block['subtype'] in asset_paths:
             path_info = asset_paths[block['subtype']]
+            qty = block.get('qty') or 1
             for event_type in path_info.get('counts_toward', []):
                 if event_type in counts:
-                    counts[event_type] += 1
+                    counts[event_type] += qty
 
     return counts
 
@@ -399,10 +400,14 @@ def write_workbook(target_path, sheet_name, date_iso, blocks, shared_config):
         qty = counts.get(dt['id'], 0)
         ws[f"{col_letter}{row}"] = qty
 
-    # Write hours (rows 22-23)
+    # Write hours (rows 22-23) — force numeric format
     work_hours, nonwork_hours = calculate_hours(blocks)
-    ws[f"{col_letter}22"] = work_hours
-    ws[f"{col_letter}23"] = nonwork_hours
+    cell22 = ws[f"{col_letter}22"]
+    cell23 = ws[f"{col_letter}23"]
+    cell22.value = work_hours
+    cell22.number_format = '0.00'
+    cell23.value = nonwork_hours
+    cell23.number_format = '0.00'
 
     # Write comment (use report synopsis)
     report = calculate_report(blocks, shared_config)
