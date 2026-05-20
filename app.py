@@ -437,16 +437,23 @@ def create_app(cfg, web_root, db_path, share_ok):
             sync.append_to_master(cfg, rows)
         sync.sync_user_db(cfg, db_path)
         # Kill browser window and shutdown Flask
-        proc = app.config.get("BROWSER_PROC")
-        if proc:
-            try:
-                import subprocess
-                si = subprocess.STARTUPINFO()
-                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                               startupinfo=si, capture_output=True)
-            except Exception:
-                pass
+        try:
+            import subprocess
+            si = subprocess.STARTUPINFO()
+            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            # Find and kill Edge/Chrome processes using our data dir
+            wmic = subprocess.run(
+                ["wmic", "process", "where",
+                 "commandline like '%daybuilder_browser%'",
+                 "get", "processid"],
+                capture_output=True, text=True, startupinfo=si)
+            for line in wmic.stdout.splitlines():
+                pid = line.strip()
+                if pid.isdigit():
+                    subprocess.run(["taskkill", "/F", "/PID", pid],
+                                   startupinfo=si, capture_output=True)
+        except Exception:
+            pass
         import threading
         threading.Thread(target=lambda: (os._exit(0))).start()
         return jsonify({"ok": True})
