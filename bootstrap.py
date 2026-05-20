@@ -436,7 +436,8 @@ def main():
                 browser, f"--app={url}",
                 f"--user-data-dir={browser_data_dir}",
                 "--window-size=480,900", "--window-position=100,50",
-                "--no-first-run", "--no-default-browser-check"
+                "--no-first-run", "--no-default-browser-check",
+                "--disable-sync", "--disable-features=msEdgeAccountSignIn,SignIn"
             ])
             break
     if not browser_proc:
