@@ -441,8 +441,10 @@ def create_app(cfg, web_root, db_path, share_ok):
         if proc:
             try:
                 import subprocess
+                si = subprocess.STARTUPINFO()
+                si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                               capture_output=True)
+                               startupinfo=si, capture_output=True)
             except Exception:
                 pass
         import threading

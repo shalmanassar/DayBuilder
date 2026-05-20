@@ -417,20 +417,27 @@ def main():
 
     # Open browser in app mode (dedicated window, no tabs/address bar)
     url = f"http://localhost:{port}"
-    import subprocess, shutil
+    import subprocess, shutil, tempfile
     browser_proc = None
+    browser_data_dir = os.path.join(tempfile.gettempdir(), "daybuilder_browser")
+    os.makedirs(browser_data_dir, exist_ok=True)
     for browser in [
+        shutil.which("msedge"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
         shutil.which("chrome"),
         shutil.which("chromium"),
         os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-        shutil.which("msedge"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
     ]:
         if browser and os.path.isfile(browser):
-            browser_proc = subprocess.Popen([browser, f"--app={url}", "--window-size=480,900", "--window-position=100,50"])
+            browser_proc = subprocess.Popen([
+                browser, f"--app={url}",
+                f"--user-data-dir={browser_data_dir}",
+                "--window-size=480,900", "--window-position=100,50",
+                "--no-first-run", "--no-default-browser-check"
+            ])
             break
     if not browser_proc:
         webbrowser.open(url)
