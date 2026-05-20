@@ -136,7 +136,7 @@ const Guided = (() => {
     el.innerHTML = `<h2>Which device?</h2><div class="guided-grid"></div><button class="guided-back">← Back</button>`;
     el.querySelector('.guided-back').onclick = () => showStep('path');
     const grid = el.querySelector('.guided-grid');
-    config.device_types.forEach(d => {
+    config.device_types.filter(d => !d.hidden).forEach(d => {
       const btn = document.createElement('button');
       btn.className = 'guided-btn';
       btn.textContent = d.display;

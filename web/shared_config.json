@@ -1,39 +1,39 @@
 {
-  "version": 2,
+  "version": 3,
   "device_types": [
     { "id": "ZebraTC", "display": "Zebra TC", "row": 7 },
     { "id": "ZebraMC", "display": "Zebra MC", "row": 8 },
-    { "id": "PC", "display": "PC", "row": 9 },
+    { "id": "Honeywell", "display": "Honeywell", "row": 9 },
     { "id": "ZebraZQLn", "display": "Zebra ZQLn", "row": 10 },
     { "id": "ZebraZD", "display": "Zebra ZD", "row": 11 },
     { "id": "ZebraZT", "display": "Zebra ZT", "row": 12 },
-    { "id": "Honeywell", "display": "Honeywell", "row": 13 },
+    { "id": "Laptops", "display": "Laptops", "row": 13 },
     { "id": "Avery6140", "display": "Avery 6140", "row": 14 },
-    { "id": "PointMobile", "display": "Point Mobile", "row": 15 },
-    { "id": "ZebraRing", "display": "Zebra Ring", "row": 16 },
-    { "id": "Thinclient", "display": "Thinclient/Desktop", "row": 17 },
+    { "id": "ZebraRing", "display": "Zebra Ring", "row": 15 },
+    { "id": "DS3678", "display": "DS3678", "row": 16 },
+    { "id": "PC", "display": "PC", "row": 17 },
     { "id": "Motorola", "display": "Motorola", "row": 18 },
-    { "id": "RTV_Events", "display": "RTV Events", "row": 19 }
+    { "id": "RTV_Events", "display": "RTV Events", "row": 19, "hidden": true }
   ],
   "asset_paths": [
+    { "id": "RMA_PTS", "display": "RMA / PTS", "counts_toward": [] },
     { "id": "RTV", "display": "RTV", "counts_toward": ["RTV_Events"] },
-    { "id": "Returns_Liq", "display": "Returns (Liq)", "counts_toward": [] },
-    { "id": "Returns_Decom", "display": "Returns (Decom)", "counts_toward": [] },
-    { "id": "RMA_PTS", "display": "RMA-PTS", "counts_toward": [] }
+    { "id": "Returns_Liq", "display": "Liquidation", "counts_toward": [] },
+    { "id": "Returns_Decom", "display": "Decom", "counts_toward": [] }
   ],
   "quotas": {
-    "ZebraTC": 18,
-    "ZebraMC": 10,
-    "PC": 1,
-    "ZebraZQLn": 8,
-    "ZebraZD": 8,
-    "ZebraZT": 1,
-    "Honeywell": 10,
-    "Avery6140": 11,
-    "PointMobile": 1,
-    "ZebraRing": 15,
-    "Thinclient": 1,
-    "Motorola": 10,
-    "RTV_Events": 35
+    "ZebraTC":    { "RMA_PTS": 18, "RTV": 35, "Returns_Liq": 18, "Returns_Decom": 18 },
+    "ZebraMC":    { "RMA_PTS": 10, "RTV": 35, "Returns_Liq": 10, "Returns_Decom": 10 },
+    "Honeywell":  { "RMA_PTS": 10, "RTV": 35, "Returns_Liq": 10, "Returns_Decom": 10 },
+    "ZebraZQLn":  { "RMA_PTS": 8,  "RTV": 35, "Returns_Liq": 8,  "Returns_Decom": 8 },
+    "ZebraZD":    { "RMA_PTS": 8,  "RTV": 35, "Returns_Liq": 8,  "Returns_Decom": 8 },
+    "ZebraZT":    { "RMA_PTS": 1,  "RTV": 35, "Returns_Liq": 1,  "Returns_Decom": 1 },
+    "Laptops":    { "RMA_PTS": 3,  "RTV": 35, "Returns_Liq": 3,  "Returns_Decom": 3 },
+    "Avery6140":  { "RMA_PTS": 11, "RTV": 35, "Returns_Liq": 11, "Returns_Decom": 11 },
+    "ZebraRing":  { "RMA_PTS": 15, "RTV": 35, "Returns_Liq": 15, "Returns_Decom": 15 },
+    "DS3678":     { "RMA_PTS": 19, "RTV": 35, "Returns_Liq": 19, "Returns_Decom": 19 },
+    "PC":         { "RMA_PTS": 1,  "RTV": 35, "Returns_Liq": 1,  "Returns_Decom": 1 },
+    "Motorola":   { "RMA_PTS": 8,  "RTV": 35, "Returns_Liq": 8,  "Returns_Decom": 8 },
+    "RTV_Events": { "RMA_PTS": 35, "RTV": 35, "Returns_Liq": 35, "Returns_Decom": 35 }
   }
 }

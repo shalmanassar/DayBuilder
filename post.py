@@ -107,27 +107,46 @@ def flatten_blocks(blocks, date_iso, user_id):
 
 
 def aggregate_productivity(blocks, shared_config):
-    """Aggregate device quantities and event counts from blocks."""
-    device_types = {d['id']: d for d in shared_config.get('device_types', [])}
+    """Aggregate device quantities for workbook writing.
+    ALL qty goes to the device's row regardless of path.
+    RTV-path items are ALSO totaled into RTV_Events (row 19).
+    Returns dict: {device_id: total_qty}."""
     asset_paths = {p['id']: p for p in shared_config.get('asset_paths', [])}
     counts = {d['id']: 0 for d in shared_config.get('device_types', [])}
 
     for block in blocks:
-        # Device qty
-        if block.get('device') and block.get('qty'):
-            dev = block['device']
-            if dev in counts:
-                counts[dev] += block['qty']
-
-        # Event counts (RTV_Events, Prov_Events) — count qty processed, not just 1
-        if block.get('subtype') and block['subtype'] in asset_paths:
-            path_info = asset_paths[block['subtype']]
-            qty = block.get('qty') or 1
-            for event_type in path_info.get('counts_toward', []):
-                if event_type in counts:
-                    counts[event_type] += qty
+        if block.get('type') != 'asset_processing':
+            continue
+        dev = block.get('device')
+        qty = block.get('qty') or 0
+        if dev and qty and dev in counts:
+            counts[dev] += qty
+        # RTV path items also count toward RTV_Events row
+        subtype = block.get('subtype') or 'RMA_PTS'
+        path_info = asset_paths.get(subtype, {})
+        for event_type in path_info.get('counts_toward', []):
+            if event_type in counts:
+                counts[event_type] += qty
 
     return counts
+
+
+def aggregate_productivity_by_path(blocks, shared_config):
+    """Aggregate device quantities grouped by asset path for quota-hour calculation.
+    Returns dict: {(device_id, path_id): qty}."""
+    breakdown = {}
+
+    for block in blocks:
+        if block.get('type') != 'asset_processing':
+            continue
+        dev = block.get('device')
+        qty = block.get('qty') or 0
+        path = block.get('subtype') or 'RMA_PTS'
+        if dev and qty:
+            key = (dev, path)
+            breakdown[key] = breakdown.get(key, 0) + qty
+
+    return breakdown
 
 
 def calculate_hours(blocks):
@@ -214,23 +233,35 @@ def calculate_report(blocks, shared_config, schedule=None):
     available_prod_mins = max(0, scheduled_prod_mins - total_off_clock_excess)
     available_prod_hrs = available_prod_mins / 60
 
-    # Aggregate qty per device and compute quota-hours
+    # Aggregate qty per device and compute quota-hours (path-aware)
     counts = aggregate_productivity(blocks, shared_config)
+    breakdown = aggregate_productivity_by_path(blocks, shared_config)
     devices = []
     total_quota_hrs = 0
 
-    for dev_id, qty in counts.items():
-        if qty <= 0:
-            continue
-        quota = quotas.get(dev_id, 0)
+    # Group by device, sum quota-hours using per-path rates
+    device_totals = {}  # dev_id → {qty, quota_hrs}
+    for (dev_id, path_id), qty in breakdown.items():
+        quota_entry = quotas.get(dev_id, {})
+        if isinstance(quota_entry, dict):
+            quota = quota_entry.get(path_id, quota_entry.get('RMA_PTS', 0))
+        else:
+            quota = quota_entry  # backward compat: single number
         quota_hrs = (qty / quota) if quota > 0 else 0
+        if dev_id not in device_totals:
+            device_totals[dev_id] = {'qty': 0, 'quota_hrs': 0, 'quota': quota}
+        device_totals[dev_id]['qty'] += qty
+        device_totals[dev_id]['quota_hrs'] += quota_hrs
+
+    for dev_id, info in device_totals.items():
+        quota_hrs = info['quota_hrs']
         pct_of_day = (quota_hrs / available_prod_hrs * 100) if available_prod_hrs > 0 else 0
         total_quota_hrs += quota_hrs
         devices.append({
             'device': dev_id,
             'display': device_types.get(dev_id, dev_id),
-            'qty': qty,
-            'quota': quota,
+            'qty': info['qty'],
+            'quota': info['quota'],
             'quota_hrs': round(quota_hrs, 2),
             'pct_of_day': round(pct_of_day, 1)
         })
