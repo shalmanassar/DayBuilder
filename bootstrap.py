@@ -415,8 +415,26 @@ def main():
     app = create_app(cfg, serve_from, db_path, share_ok)
     port = cfg["port"]
 
-    # Open browser
-    webbrowser.open(f"http://localhost:{port}")
+    # Open browser in app mode (dedicated window, no tabs/address bar)
+    url = f"http://localhost:{port}"
+    import subprocess, shutil
+    browser_opened = False
+    for browser in [
+        shutil.which("chrome"),
+        shutil.which("chromium"),
+        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
+        shutil.which("msedge"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+    ]:
+        if browser and os.path.isfile(browser):
+            subprocess.Popen([browser, f"--app={url}"])
+            browser_opened = True
+            break
+    if not browser_opened:
+        webbrowser.open(url)
     if splash:
         splash.destroy()
     logger.info(f"Serving on port {port}, web_root={serve_from}")

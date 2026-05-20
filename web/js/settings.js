@@ -91,7 +91,7 @@ const Settings = (() => {
     document.getElementById('setExit').onclick = async () => {
       if (!confirm('Exit DayBuilder? The server will shut down.')) return;
       await fetch('/api/shutdown', { method: 'POST' });
-      document.body.innerHTML = '<div style="text-align:center;padding:4rem;color:#8ab4c7"><h1>DayBuilder closed</h1><p>You can close this tab.</p></div>';
+      window.close();
     };
 
     // Reset buttons
