@@ -149,8 +149,8 @@ const Timeline = (() => {
 
     // Drag
     el.setAttribute('draggable', 'true');
-    el.addEventListener('dragstart', (e) => { if (e.target.classList.contains('tl-handle')) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', block.id); el.classList.add('dragging'); });
-    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragstart', (e) => { if (e.target.classList.contains('tl-handle')) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', block.id); el.classList.add('dragging'); const track = container.querySelector('.tl-track'); if (track) track.classList.add('drag-active'); });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); const track = container.querySelector('.tl-track'); if (track) track.classList.remove('drag-active'); });
 
     // Resize
     el.querySelectorAll('.tl-handle').forEach(h => { h.addEventListener('pointerdown', (e) => startResize(e, block, h.dataset.edge)); });
@@ -236,12 +236,9 @@ const Timeline = (() => {
     closePopover();
     const pop = document.createElement('div');
     pop.className = 'tl-popover';
-    // Position as speech bubble to the right of the block
-    const rect = anchorEl.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
     pop.style.position = 'fixed';
-    pop.style.left = (rect.right + 10) + 'px';
-    pop.style.top = rect.top + 'px';
+    pop.style.visibility = 'hidden';
+    document.body.appendChild(pop);
 
     const isM = isMarker(block);
     const midTime = (!isM && block.start && block.end) ? minToTime(Math.round((timeToMin(block.start) + timeToMin(block.end)) / 2 / SNAP) * SNAP) : '';
@@ -255,6 +252,20 @@ const Timeline = (() => {
       ${!isM && block.start && block.end ? `<div class="pop-split"><label>Split at<input class="pop-split-time" type="time" value="${midTime}" step="300"></label><button class="pop-split-btn">✂ Split</button></div>` : ''}
       <div class="pop-actions"><button class="pop-save">Save</button><button class="pop-delete">Delete</button><button class="pop-close">✕</button></div>
     `;
+    // Position: try right of block, clamp to viewport
+    const rect = anchorEl.getBoundingClientRect();
+    const popW = pop.offsetWidth || 240;
+    const popH = pop.offsetHeight || 300;
+    let left = rect.right + 10;
+    let top = rect.top;
+    if (left + popW > window.innerWidth) left = rect.left - popW - 10;
+    if (left < 0) left = 8;
+    if (top + popH > window.innerHeight) top = window.innerHeight - popH - 8;
+    if (top < 0) top = 8;
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+    pop.style.visibility = 'visible';
+
     pop.querySelector('.pop-save').onclick = () => { block.type = pop.querySelector('.pop-type').value; block.device = pop.querySelector('.pop-device')?.value || null; block.qty = parseInt(pop.querySelector('.pop-qty')?.value) || null; block.start = pop.querySelector('.pop-start').value || null; block.end = pop.querySelector('.pop-end')?.value || null; block.memo = pop.querySelector('.pop-memo').value || null; updateBlock(block, true); closePopover(); };
     pop.querySelector('.pop-delete').onclick = () => { deleteBlock(block.id); closePopover(); };
     pop.querySelector('.pop-close').onclick = closePopover;
@@ -267,7 +278,6 @@ const Timeline = (() => {
         closePopover();
       };
     }
-    document.body.appendChild(pop);
     // Close on outside click or Escape
     setTimeout(() => { document.addEventListener('click', outsideClose); document.addEventListener('keydown', popKeyHandler); }, 0);
   }

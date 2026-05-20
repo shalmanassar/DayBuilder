@@ -1,18 +1,19 @@
 {
   "version": 2,
   "device_types": [
-    { "id": "ZebraMC", "display": "Zebra MC", "row": 7 },
-    { "id": "ZebraTC", "display": "Zebra TC", "row": 8 },
+    { "id": "ZebraTC", "display": "Zebra TC", "row": 7 },
+    { "id": "ZebraMC", "display": "Zebra MC", "row": 8 },
     { "id": "PC", "display": "PC", "row": 9 },
-    { "id": "Avery6140", "display": "Avery 6140", "row": 10 },
+    { "id": "ZebraZQLn", "display": "Zebra ZQLn", "row": 10 },
     { "id": "ZebraZD", "display": "Zebra ZD", "row": 11 },
-    { "id": "ZebraZQLn", "display": "Zebra ZQLn", "row": 12 },
-    { "id": "ZebraZT", "display": "Zebra ZT", "row": 13 },
-    { "id": "Honeywell", "display": "Honeywell", "row": 14 },
+    { "id": "ZebraZT", "display": "Zebra ZT", "row": 12 },
+    { "id": "Honeywell", "display": "Honeywell", "row": 13 },
+    { "id": "Avery6140", "display": "Avery 6140", "row": 14 },
     { "id": "PointMobile", "display": "Point Mobile", "row": 15 },
     { "id": "ZebraRing", "display": "Zebra Ring", "row": 16 },
-    { "id": "RTV_Events", "display": "RTV Events", "row": 17 },
-    { "id": "Prov_Events", "display": "Prov Events", "row": 18 }
+    { "id": "Thinclient", "display": "Thinclient/Desktop", "row": 17 },
+    { "id": "Motorola", "display": "Motorola", "row": 18 },
+    { "id": "RTV_Events", "display": "RTV Events", "row": 19 }
   ],
   "asset_paths": [
     { "id": "RTV", "display": "RTV", "counts_toward": ["RTV_Events"] },
@@ -21,17 +22,18 @@
     { "id": "RMA_PTS", "display": "RMA-PTS", "counts_toward": [] }
   ],
   "quotas": {
-    "ZebraMC": 10,
     "ZebraTC": 18,
+    "ZebraMC": 10,
     "PC": 1,
-    "Avery6140": 11,
-    "ZebraZD": 8,
     "ZebraZQLn": 8,
+    "ZebraZD": 8,
     "ZebraZT": 1,
     "Honeywell": 10,
+    "Avery6140": 11,
     "PointMobile": 1,
     "ZebraRing": 15,
-    "RTV_Events": 35,
-    "Prov_Events": 20
+    "Thinclient": 1,
+    "Motorola": 10,
+    "RTV_Events": 35
   }
 }

@@ -17,13 +17,19 @@ const Settings = (() => {
       <input id="setCfgUserId" value="${cfg.user_id || ''}">
 
       <label>Target Workbook</label>
-      <input id="setCfgWorkbook" value="${cfg.target_workbook || ''}" readonly>
+      <div style="display:flex;gap:0.5rem">
+        <input id="setCfgWorkbook" value="${cfg.target_workbook || ''}" style="flex:1">
+        <button id="setBrowseWorkbook" style="white-space:nowrap">Browse…</button>
+      </div>
 
       <label>Target Sheet</label>
       <input id="setCfgSheet" value="${cfg.target_sheet || ''}">
 
       <label>Sync Target</label>
-      <input id="setCfgSync" value="${cfg.sync_target || ''}">
+      <div style="display:flex;gap:0.5rem">
+        <input id="setCfgSync" value="${cfg.sync_target || ''}" style="flex:1">
+        <button id="setBrowseSync" style="white-space:nowrap">Browse…</button>
+      </div>
 
       <label>Schedule — Start / End</label>
       <div style="display:flex;gap:0.5rem">
@@ -96,6 +102,18 @@ const Settings = (() => {
     };
     document.getElementById('setResetSettings').onclick = () => doReset('settings');
     document.getElementById('setResetFactory').onclick = () => doReset('factory');
+
+    // Browse buttons
+    document.getElementById('setBrowseWorkbook').onclick = async () => {
+      const res = await fetch('/api/browse', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type: 'file', title: 'Select Target Workbook', filetypes: [['Excel', '*.xlsm *.xlsx'], ['All', '*.*']] }) });
+      const data = await res.json();
+      if (data.path) document.getElementById('setCfgWorkbook').value = data.path;
+    };
+    document.getElementById('setBrowseSync').onclick = async () => {
+      const res = await fetch('/api/browse', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type: 'folder', title: 'Select Sync Target Folder' }) });
+      const data = await res.json();
+      if (data.path) document.getElementById('setCfgSync').value = data.path;
+    };
   }
 
   async function doReset(level) {

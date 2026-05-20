@@ -208,7 +208,9 @@ footer {
 }
 
 .tl-block:hover { box-shadow: 0 0 0 1px var(--accent); z-index: 5; }
-.tl-block.dragging { opacity: 0.3; }
+.tl-block.dragging { opacity: 0.3; pointer-events: none; }
+.tl-track.drag-active .tl-block:not(.dragging) { pointer-events: none; }
+.tl-track.drag-active .tl-gap { pointer-events: none; }
 .tl-block.drag-over { box-shadow: 0 0 0 2px var(--accent); }
 
 .tl-block-header {

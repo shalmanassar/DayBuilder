@@ -392,14 +392,12 @@ def write_workbook(target_path, sheet_name, date_iso, blocks, shared_config):
 
     ws = wb[sheet_name]
 
-    # Write productivity (rows 7-19)
+    # Write productivity (rows 7-19) — only write non-zero values
     counts = aggregate_productivity(blocks, shared_config)
     for dt in shared_config.get('device_types', []):
         row = dt['row']
-        ws[f"{col_letter}{row}"] = counts.get(dt['id'], 0)
-
-    # Row 19 reserved = 0
-    ws[f"{col_letter}19"] = 0
+        qty = counts.get(dt['id'], 0)
+        ws[f"{col_letter}{row}"] = qty
 
     # Write hours (rows 22-23)
     work_hours, nonwork_hours = calculate_hours(blocks)
@@ -410,6 +408,15 @@ def write_workbook(target_path, sheet_name, date_iso, blocks, shared_config):
     report = calculate_report(blocks, shared_config)
     comment = report.get('synopsis', '') or build_comment(blocks)
     ws[f"B{comment_row}"] = comment
+
+    # Clear any accidental fill on rows 19-66 (openpyxl can corrupt formatting)
+    from openpyxl.styles import PatternFill
+    no_fill = PatternFill(fill_type=None)
+    for row in range(19, 67):
+        for col in ('B', 'C', 'D', 'E', 'F'):
+            cell = ws[f"{col}{row}"]
+            if cell.fill and cell.fill.fgColor and cell.fill.fgColor.rgb and cell.fill.fgColor.rgb != '00000000':
+                cell.fill = no_fill
 
     try:
         wb.save(target_path)
