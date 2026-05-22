@@ -299,8 +299,83 @@
   // Report button
   btnReport.addEventListener('click', () => { Report.show(Timeline.getBlocks()); });
 
-  // Weekly report button
-  document.getElementById('btnWeekReport').addEventListener('click', () => { Report.showWeek(currentDate); });
+  // Weekly report button — opens week-at-a-glance
+  document.getElementById('btnWeekReport').addEventListener('click', () => { showWeekGlance(currentDate); });
+
+  // --- Week at a Glance ---
+  async function showWeekGlance(dateIso) {
+    const res = await fetch('/api/rates/week', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ date: dateIso })
+    });
+    const data = await res.json();
+    const dayNames = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+    const t = data.totals || {};
+    const adjColor = t.adjusted_pct >= 100 ? 'var(--success)' : t.adjusted_pct >= 75 ? 'var(--warning)' : 'var(--danger)';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `<div class="week-glance-modal">
+      <div class="wg-header">
+        <h2>Week of ${data.week_of}</h2>
+        <div class="wg-summary">
+          <span class="wg-pct" style="color:${adjColor}">${t.adjusted_pct || 0}%</span>
+          <span class="wg-label">${t.total_quota_hours || 0}h of ${t.adjusted_prod_hours || 0}h</span>
+        </div>
+        <div class="wg-actions">
+          <button class="wg-report-btn">📄 Full Report</button>
+          <button class="wg-close-btn">✕</button>
+        </div>
+      </div>
+      <div class="wg-days">${data.days.map((day, i) => {
+        const r = day.report ? day.report.totals : null;
+        const pct = r ? r.adjusted_pct : 0;
+        const c = pct >= 100 ? 'var(--success)' : pct >= 75 ? 'var(--warning)' : 'var(--danger)';
+        const blocks = day.blocks || [];
+        return `<div class="wg-day">
+          <div class="wg-day-header">
+            <span class="wg-day-name">${dayNames[i]}</span>
+            <span class="wg-day-pct" style="color:${r ? c : 'var(--text-muted)'}">${r ? pct + '%' : '—'}</span>
+          </div>
+          <div class="wg-mini-timeline" data-day="${day.date}">${renderMiniTimeline(blocks)}</div>
+          <div class="wg-day-stats">${r ? `${r.total_quota_hours}h prod · ${r.available_prod_hours}h avail` : 'No data'}</div>
+        </div>`;
+      }).join('')}</div>
+    </div>`;
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    overlay.querySelector('.wg-close-btn').onclick = () => overlay.remove();
+    overlay.querySelector('.wg-report-btn').onclick = () => { overlay.remove(); Report.showWeek(dateIso); };
+
+    // Click a day to navigate
+    overlay.querySelectorAll('.wg-day').forEach(el => {
+      el.addEventListener('dblclick', () => {
+        const date = el.querySelector('.wg-mini-timeline').dataset.day;
+        overlay.remove();
+        loadDate(date);
+      });
+    });
+  }
+
+  function renderMiniTimeline(blocks) {
+    if (!blocks || blocks.length === 0) return '<div class="wg-empty">—</div>';
+    const TYPE_COLORS = {
+      asset_processing: '#3498db', project: '#9b59b6', admin: '#e67e22',
+      meeting: '#1abc9c', '5s': '#f1c40f', learning: '#2ecc71',
+      break: '#7f8c8d', lunch: '#95a5a6', clock_in: '#27ae60', clock_out: '#e74c3c'
+    };
+    const minT = 7 * 60, maxT = 17 * 60, range = maxT - minT;
+    return blocks.filter(b => b.start && b.end && b.type !== 'clock_in' && b.type !== 'clock_out').map(b => {
+      const [sh, sm] = b.start.split(':').map(Number);
+      const [eh, em] = b.end.split(':').map(Number);
+      const s = sh * 60 + sm, e = eh * 60 + em;
+      const left = ((s - minT) / range * 100).toFixed(1);
+      const width = (((e - s) / range) * 100).toFixed(1);
+      const color = TYPE_COLORS[b.type] || '#3498db';
+      return `<div class="wg-block" style="left:${left}%;width:${width}%;background:${color}" title="${b.type}${b.memo ? ': '+b.memo : ''}"></div>`;
+    }).join('');
+  }
 
   // Settings button
   btnSettings.addEventListener('click', () => { Settings.open(); });

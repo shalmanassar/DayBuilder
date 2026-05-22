@@ -48,6 +48,7 @@ const Settings = (() => {
       </div>
 
       <div class="settings-reset">
+        <button id="setManageMemos">Manage Descriptions</button>
         <button id="setSyncPull">Sync from Share</button>
         <button id="setRefresh">Refresh App</button>
         <button id="setResetSettings">Reset Settings</button>
@@ -121,6 +122,70 @@ const Settings = (() => {
       const data = await res.json();
       if (data.path) document.getElementById('setCfgSync').value = data.path;
     };
+
+    // Manage Descriptions
+    document.getElementById('setManageMemos').onclick = () => { overlay.remove(); openMemoManager(); };
+  }
+
+  async function openMemoManager() {
+    const res = await fetch('/api/memos');
+    const memos = await res.json();
+    const types = Object.keys(memos);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `<div class="settings-modal" style="max-width:500px;max-height:80vh;overflow-y:auto">
+      <h2>📝 Manage Saved Descriptions</h2>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem">
+        <select id="memoType" style="flex:1;padding:0.4rem;background:var(--bg-deep);border:1px solid var(--border);color:var(--text-primary);border-radius:4px">
+          <option value="">— Select type —</option>
+          ${types.map(t => `<option value="${t}">${t.replace(/_/g,' ')}</option>`).join('')}
+        </select>
+        <input id="memoNew" placeholder="New description..." style="flex:2;padding:0.4rem;background:var(--bg-deep);border:1px solid var(--border);color:var(--text-primary);border-radius:4px">
+        <button id="memoAdd" style="padding:0.4rem 0.8rem;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer">Add</button>
+      </div>
+      <div id="memoList"></div>
+      <div style="margin-top:1rem;text-align:right"><button id="memoClose" style="padding:0.5rem 1.5rem;background:var(--border);color:var(--text-primary);border:none;border-radius:6px;cursor:pointer">Close</button></div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const listEl = document.getElementById('memoList');
+    const typeSelect = document.getElementById('memoType');
+
+    function renderList() {
+      const type = typeSelect.value;
+      if (!type || !memos[type]) { listEl.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:1rem">Select a type to see descriptions</div>'; return; }
+      listEl.innerHTML = memos[type].map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0.3rem 0.5rem;border-bottom:1px solid var(--border)">
+          <span style="font-size:0.85rem">${m}</span>
+          <button class="memo-del" data-memo="${m}" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:1rem">✕</button>
+        </div>
+      `).join('');
+      listEl.querySelectorAll('.memo-del').forEach(btn => {
+        btn.onclick = async () => {
+          await fetch('/api/memos', { method: 'DELETE', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type, memo: btn.dataset.memo }) });
+          memos[type] = memos[type].filter(x => x !== btn.dataset.memo);
+          renderList();
+        };
+      });
+    }
+
+    typeSelect.onchange = renderList;
+    renderList();
+
+    document.getElementById('memoAdd').onclick = async () => {
+      const type = typeSelect.value;
+      const memo = document.getElementById('memoNew').value.trim();
+      if (!type || !memo) return;
+      await fetch('/api/memos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ type, memo }) });
+      if (!memos[type]) memos[type] = [];
+      if (!memos[type].includes(memo)) memos[type].push(memo);
+      document.getElementById('memoNew').value = '';
+      renderList();
+    };
+
+    document.getElementById('memoClose').onclick = () => overlay.remove();
   }
 
   async function doReset(level) {

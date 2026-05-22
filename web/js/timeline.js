@@ -413,7 +413,7 @@ const Timeline = (() => {
       ${!isM ? `<label>Device<input class="pop-device" value="${block.device||''}"></label><label>Qty<input class="pop-qty" type="number" value="${block.qty||''}"></label>` : ''}
       <label>Start<input class="pop-start" type="time" value="${block.start||''}" step="900"></label>
       ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}" step="900"></label>` : ''}
-      <label>Memo<input class="pop-memo" value="${block.memo||''}"></label>
+      <label>Memo<input class="pop-memo" list="pop-memo-list" value="${block.memo||''}"><datalist id="pop-memo-list"></datalist></label>
       ${!isM && block.start && block.end ? `<div class="pop-split"><label>Split at<input class="pop-split-time" type="time" value="${midTime}" step="900"></label><button class="pop-split-btn">✂ Split</button></div>` : ''}
       <div class="pop-actions">
         ${!isM ? `<button class="pop-lock">${lockLabel}</button>` : ''}
@@ -435,6 +435,20 @@ const Timeline = (() => {
     pop.style.left = left + 'px';
     pop.style.top = top + 'px';
     pop.style.visibility = 'visible';
+
+    // Load memo recents into datalist
+    fetch(`/api/recents/${block.type}`).then(r => r.json()).then(items => {
+      const dl = pop.querySelector('#pop-memo-list');
+      if (dl) dl.innerHTML = items.map(m => `<option value="${m}">`).join('');
+    }).catch(() => {});
+
+    // Re-fetch when type changes
+    pop.querySelector('.pop-type').addEventListener('change', (e) => {
+      fetch(`/api/recents/${e.target.value}`).then(r => r.json()).then(items => {
+        const dl = pop.querySelector('#pop-memo-list');
+        if (dl) dl.innerHTML = items.map(m => `<option value="${m}">`).join('');
+      }).catch(() => {});
+    });
 
     pop.querySelector('.pop-save').onclick = () => { block.type = pop.querySelector('.pop-type').value; block.device = pop.querySelector('.pop-device')?.value || null; block.qty = parseInt(pop.querySelector('.pop-qty')?.value) || null; block.start = pop.querySelector('.pop-start').value || null; block.end = pop.querySelector('.pop-end')?.value || null; block.memo = pop.querySelector('.pop-memo').value || null; updateBlock(block, true); closePopover(); };
     pop.querySelector('.pop-delete').onclick = () => { deleteBlock(block.id); closePopover(); };

@@ -1008,3 +1008,83 @@ footer {
 .tl-device-accordion.open .acc-arrow { transform: rotate(90deg); display: inline-block; }
 
 /* Clock markers — handled in .tl-block.tl-marker above */
+
+/* Week at a Glance */
+.week-glance-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 90vw;
+  max-width: 900px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.wg-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.wg-header h2 { margin: 0; font-size: 1.2rem; }
+.wg-summary { display: flex; align-items: baseline; gap: 0.5rem; }
+.wg-pct { font-size: 1.5rem; font-weight: 700; }
+.wg-label { font-size: 0.85rem; color: var(--text-muted); }
+.wg-actions { margin-left: auto; display: flex; gap: 0.5rem; }
+.wg-report-btn, .wg-close-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.wg-report-btn:hover { background: var(--accent); color: #fff; }
+.wg-days {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.wg-day {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.wg-day:hover { border-color: var(--accent); }
+.wg-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+.wg-day-name { font-weight: 700; font-size: 0.9rem; }
+.wg-day-pct { font-weight: 700; font-size: 0.9rem; }
+.wg-mini-timeline {
+  position: relative;
+  height: 20px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.wg-block {
+  position: absolute;
+  top: 2px;
+  height: 16px;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+.wg-day-stats {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+.wg-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 20px;
+}

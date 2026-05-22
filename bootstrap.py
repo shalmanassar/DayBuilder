@@ -435,7 +435,7 @@ def main():
             browser_proc = subprocess.Popen([
                 browser, f"--app={url}",
                 f"--user-data-dir={browser_data_dir}",
-                "--window-size=480,900", "--window-position=100,50",
+                "--window-size=1200,900", "--window-position=100,50",
                 "--no-first-run", "--no-default-browser-check",
                 "--disable-sync", "--disable-features=msEdgeAccountSignIn,SignIn",
                 "--inprivate"

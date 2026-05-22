@@ -183,6 +183,57 @@ def create_app(cfg, web_root, db_path, share_ok):
         conn.close()
         return jsonify([r[0] for r in rows])
 
+    # --- /api/memos — manage saved descriptions ---
+    @app.route("/api/memos", methods=["GET"])
+    def get_all_memos():
+        """Return all saved memos grouped by type."""
+        conn = db.get_db(db_path)
+        rows = conn.execute(
+            "SELECT DISTINCT job, memo FROM TimeLogTable WHERE memo IS NOT NULL AND memo != '' ORDER BY job, memo"
+        ).fetchall()
+        conn.close()
+        result = {}
+        for r in rows:
+            result.setdefault(r[0], []).append(r[1])
+        return jsonify(result)
+
+    @app.route("/api/memos", methods=["POST"])
+    def add_memo():
+        """Add a saved memo by inserting a placeholder row."""
+        data = request.get_json(force=True)
+        job_type = data.get("type", "")
+        memo = data.get("memo", "").strip()
+        if not job_type or not memo:
+            return jsonify({"error": "type and memo required"}), 400
+        conn = db.get_db(db_path)
+        # Check if already exists
+        existing = conn.execute(
+            "SELECT 1 FROM TimeLogTable WHERE job = ? AND memo = ? LIMIT 1", (job_type, memo)
+        ).fetchone()
+        if not existing:
+            uid = f"memo_{job_type}_{memo[:20]}_{int(__import__('time').time())}"
+            conn.execute(
+                "INSERT INTO TimeLogTable (uid, date, job, time, e_time, memo) VALUES (?, ?, ?, ?, ?, ?)",
+                (uid, "01/01/2000", job_type, "00:00", "00:00", memo)
+            )
+            conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+
+    @app.route("/api/memos", methods=["DELETE"])
+    def delete_memo():
+        """Remove all rows with a specific job+memo combo (clears it from recents)."""
+        data = request.get_json(force=True)
+        job_type = data.get("type", "")
+        memo = data.get("memo", "").strip()
+        if not job_type or not memo:
+            return jsonify({"error": "type and memo required"}), 400
+        conn = db.get_db(db_path)
+        conn.execute("DELETE FROM TimeLogTable WHERE job = ? AND memo = ?", (job_type, memo))
+        conn.commit()
+        conn.close()
+        return jsonify({"ok": True})
+
     # --- /api/post/{date} ---
     @app.route("/api/post/<date_iso>", methods=["POST"])
     def post_day_endpoint(date_iso):
@@ -373,7 +424,7 @@ def create_app(cfg, web_root, db_path, share_ok):
                 rows = db.get_timelog_by_jdn(user_id, jdn, db_path)
                 blocks = _master_rows_to_blocks(rows) if rows else []
             report = post.calculate_report(blocks, shared, schedule) if blocks else None
-            days.append({"date": day_iso, "blocks": len(blocks), "report": report})
+            days.append({"date": day_iso, "blocks": blocks, "report": report})
 
         # Aggregate week totals
         week_totals = {"total_quota_hours": 0, "available_prod_hours": 0, "adjusted_prod_hours": 0,
@@ -423,6 +474,15 @@ def create_app(cfg, web_root, db_path, share_ok):
         if ok:
             return jsonify({"ok": True, "msg": f"Synced {len(rows)} rows to master"})
         return jsonify({"ok": False, "error": err}), 500
+
+    @app.route("/api/sync/pull", methods=["POST"])
+    def sync_pull():
+        """Manual trigger: pull data from remote user DB on share into local."""
+        import sync
+        ok, err = sync.startup_sync(cfg, db_path)
+        if ok:
+            return jsonify({"ok": True, "msg": "Pulled data from share"})
+        return jsonify({"ok": False, "error": err or "Sync failed"}), 500
 
     @app.route("/api/shutdown", methods=["POST"])
     def shutdown():
