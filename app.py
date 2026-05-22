@@ -38,7 +38,9 @@ def create_app(cfg, web_root, db_path, share_ok):
             return _serve_embedded_setup()
         if not wr:
             return _serve_embedded_setup()
-        return send_from_directory(wr, "index.html")
+        resp = send_from_directory(wr, "index.html")
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return resp
 
     @app.route("/setup")
     def setup():
@@ -49,7 +51,12 @@ def create_app(cfg, web_root, db_path, share_ok):
         wr = _get_web_root()
         if not wr:
             return Response("Setup not complete", status=404)
-        return send_from_directory(wr, filename)
+        resp = send_from_directory(wr, filename)
+        if filename.endswith(('.js', '.css', '.html')):
+            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            resp.headers['Pragma'] = 'no-cache'
+            resp.headers['Expires'] = '0'
+        return resp
 
     # --- /api/config ---
     @app.route("/api/config", methods=["GET"])
