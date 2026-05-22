@@ -26,7 +26,6 @@
       <button id="btnToday" title="Go to today">Today</button>
       <button id="btnWeekReport" title="Weekly report">📊 Week</button>
       <button id="btnSettings" title="Settings">⚙</button>
-      <button id="btnClipboard" title="Copy report">⧉</button>
     </div>
   </header>
 
@@ -35,11 +34,34 @@
     <div class="calendar-body" id="calendarBody"></div>
   </div>
 
-  <main>
-    <div class="timeline" id="timeline">
-      <div class="timeline-empty">No blocks yet. Add an activity to start building your day.</div>
-    </div>
-    <button class="add-btn" id="btnAdd">+ Add Activity</button>
+  <main class="three-col">
+    <!-- Left: Drag Palette -->
+    <aside class="palette">
+      <div class="palette-title">Activities</div>
+      <div class="palette-item" draggable="true" data-type="asset_processing"><span class="palette-swatch" style="background:#3498db"></span>Asset Processing</div>
+      <div class="palette-item" draggable="true" data-type="project"><span class="palette-swatch" style="background:#9b59b6"></span>Project</div>
+      <div class="palette-item" draggable="true" data-type="admin"><span class="palette-swatch" style="background:#e67e22"></span>Admin</div>
+      <div class="palette-item" draggable="true" data-type="meeting"><span class="palette-swatch" style="background:#1abc9c"></span>Meeting</div>
+      <div class="palette-item" draggable="true" data-type="5s"><span class="palette-swatch" style="background:#f1c40f"></span>5S</div>
+      <div class="palette-item" draggable="true" data-type="learning"><span class="palette-swatch" style="background:#2ecc71"></span>Learning</div>
+      <div class="palette-item" draggable="true" data-type="break"><span class="palette-swatch" style="background:#7f8c8d"></span>Break</div>
+      <div class="palette-item" draggable="true" data-type="lunch"><span class="palette-swatch" style="background:#95a5a6"></span>Lunch</div>
+    </aside>
+
+    <!-- Center: Timeline -->
+    <section class="timeline-col">
+      <div class="timeline" id="timeline">
+        <div class="timeline-empty">No blocks yet. Drag an activity from the left to start.</div>
+      </div>
+    </section>
+
+    <!-- Right: Live Report -->
+    <aside class="live-report" id="liveReport">
+      <div class="lr-title">Live Report</div>
+      <div class="lr-body" id="liveReportBody">
+        <div class="lr-empty">Add blocks to see stats</div>
+      </div>
+    </aside>
   </main>
 
   <footer>

@@ -1,20 +1,19 @@
-/* DayBuilder — app.js (Phase 5: date nav, settings, shutdown) */
+/* DayBuilder — app.js (v3.1: 3-column layout, palette drag, live report) */
 (async function () {
   let currentDate = new Date().toISOString().slice(0, 10);
   const dateTitle = document.getElementById('dateTitle');
   const banner = document.getElementById('offlineBanner');
   const timelineEl = document.getElementById('timeline');
-  const btnAdd = document.getElementById('btnAdd');
   const btnPost = document.getElementById('btnPost');
   const btnReport = document.getElementById('btnReport');
   const btnOpenTarget = document.getElementById('btnOpenTarget');
-  const btnClipboard = document.getElementById('btnClipboard');
   const btnSettings = document.getElementById('btnSettings');
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
   const btnToday = document.getElementById('btnToday');
   const datePicker = document.getElementById('datePicker');
   const validationContainer = document.getElementById('validationContainer');
+  const liveReportBody = document.getElementById('liveReportBody');
 
   // Check status
   let offlineMode = false;
@@ -33,7 +32,7 @@
     offlineMode = true;
   }
 
-  // Populate title bar username
+  // Config + schedule
   let schedule = { default_start: '08:00', default_end: '16:30', break_minutes: 15, lunch_minutes: 30 };
   try {
     const cfgRes = await fetch('/api/config');
@@ -43,13 +42,12 @@
     if (cfgData.user && cfgData.user.schedule) schedule = { ...schedule, ...cfgData.user.schedule };
   } catch (e) { /* ignore */ }
 
-  // Generate default day template from schedule
   function generateDayTemplate() {
     const s = schedule;
     return [
       { id: crypto.randomUUID(), type: 'clock_in', start: s.default_start, end: null },
       { id: crypto.randomUUID(), type: 'break', start: '10:30', end: addMin('10:30', s.break_minutes), memo: 'Break 1' },
-      { id: crypto.randomUUID(), type: 'lunch', start: '12:00', end: addMin('12:00', s.lunch_minutes), memo: 'Lunch' },
+      { id: crypto.randomUUID(), type: 'lunch', start: '12:00', end: addMin('12:00', s.lunch_minutes), memo: 'Lunch', locked: true },
       { id: crypto.randomUUID(), type: 'break', start: '14:30', end: addMin('14:30', s.break_minutes), memo: 'Break 2' },
       { id: crypto.randomUUID(), type: 'clock_out', start: s.default_end, end: null }
     ];
@@ -60,7 +58,6 @@
     return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
   }
 
-  // Reconstructed data indicator
   function showReconstructedBanner(show) {
     let el = document.getElementById('reconstructedBanner');
     if (!el) {
@@ -76,11 +73,8 @@
   // --- Date navigation ---
   function formatTitle(iso) {
     const d = new Date(iso + 'T12:00:00');
-    return '\u2600 ' + d.toLocaleDateString('en-US', {
-      weekday: 'long', month: 'short', day: 'numeric', year: 'numeric'
-    });
+    return '\u2600 ' + d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
   }
-
   function shiftDate(iso, days) {
     const d = new Date(iso + 'T12:00:00');
     d.setDate(d.getDate() + days);
@@ -92,24 +86,21 @@
     dateTitle.textContent = formatTitle(iso);
     datePicker.value = iso;
     Timeline.setDate(iso);
-    // Highlight if viewing today
     const today = new Date().toISOString().slice(0, 10);
     dateTitle.classList.toggle('date-today', iso === today);
     try {
       const res = await fetch('/api/day/' + iso);
       const draft = await res.json();
       let dayBlocks = draft.blocks || [];
-      // Auto-populate empty days with default template
       if (dayBlocks.length === 0) dayBlocks = generateDayTemplate();
       Timeline.setBlocks(dayBlocks);
       Post.showValidation(dayBlocks, validationContainer);
-      // Show reconstructed banner if from legacy data
       showReconstructedBanner(draft.reconstructed);
     } catch (e) {
-      const tmpl = generateDayTemplate();
-      Timeline.setBlocks(tmpl);
+      Timeline.setBlocks(generateDayTemplate());
       showReconstructedBanner(false);
     }
+    updateLiveReport(Timeline.getBlocks());
   }
 
   btnPrev.addEventListener('click', () => loadDate(shiftDate(currentDate, -1)));
@@ -117,19 +108,77 @@
   btnToday.addEventListener('click', () => loadDate(new Date().toISOString().slice(0, 10)));
   datePicker.addEventListener('change', () => { if (datePicker.value) loadDate(datePicker.value); });
 
-  // --- Auto-save ---
+  // --- Auto-save + live report ---
   let saveTimer = null;
+  let reportTimer = null;
   function autoSave(blocks) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       fetch('/api/day/' + currentDate, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ blocks })
       });
       Post.showValidation(blocks, validationContainer);
     }, 500);
+    // Debounce live report update
+    clearTimeout(reportTimer);
+    reportTimer = setTimeout(() => updateLiveReport(blocks), 300);
   }
+
+  // --- Live Report ---
+  async function updateLiveReport(blocks) {
+    if (!blocks || blocks.length === 0) {
+      liveReportBody.innerHTML = '<div class="lr-empty">Add blocks to see stats</div>';
+      return;
+    }
+    try {
+      const res = await fetch('/api/rates', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blocks })
+      });
+      const data = await res.json();
+      renderLiveReport(data);
+    } catch (e) {
+      liveReportBody.innerHTML = '<div class="lr-empty">Unable to load</div>';
+    }
+  }
+
+  function renderLiveReport(data) {
+    const t = data.totals || {};
+    const devices = data.devices || [];
+    const color = t.adjusted_pct >= 100 ? 'var(--success)' : t.adjusted_pct >= 75 ? 'var(--warning)' : 'var(--danger)';
+
+    let devHtml = devices.map(d =>
+      `<div class="lr-row"><span>${d.display} x${d.qty}</span><span class="lr-val">${d.quota_hrs}h</span></div>`
+    ).join('');
+
+    liveReportBody.innerHTML = `
+      <div class="lr-pct" style="color:${color}">${t.adjusted_pct || 0}%</div>
+      <div class="lr-subtitle">Adjusted Goal</div>
+      <div class="lr-section">
+        <h4>Production</h4>
+        <div class="lr-row"><span>Produced</span><span class="lr-val">${t.total_quota_hours || 0}h</span></div>
+        <div class="lr-row"><span>Target</span><span class="lr-val">${t.adjusted_prod_hours || 0}h</span></div>
+        <div class="lr-row"><span>Available</span><span class="lr-val">${t.available_prod_hours || 0}h</span></div>
+      </div>
+      ${devHtml ? `<div class="lr-section"><h4>Devices</h4>${devHtml}</div>` : ''}
+      <div class="lr-section">
+        <h4>Time</h4>
+        <div class="lr-row"><span>Shift</span><span class="lr-val">${t.actual_in || '?'} → ${t.actual_out || '?'}</span></div>
+        <div class="lr-row"><span>Break</span><span class="lr-val">${t.actual_break_mins || 0}m</span></div>
+        <div class="lr-row"><span>Lunch</span><span class="lr-val">${t.actual_lunch_mins || 0}m</span></div>
+        <div class="lr-row"><span>Non-prod</span><span class="lr-val">${t.non_asset_hours || 0}h</span></div>
+      </div>
+    `;
+  }
+
+  // --- Palette drag-to-timeline ---
+  document.querySelectorAll('.palette-item').forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('application/x-palette-type', item.dataset.type);
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+  });
 
   // --- Calendar mini-map ---
   const calToggle = document.getElementById('calendarToggle');
@@ -150,7 +199,7 @@
       const res = await fetch(`/api/calendar/${calYear}/${calMonth}`);
       const data = await res.json();
       days = data.days || {};
-    } catch (e) { /* offline */ }
+    } catch (e) {}
 
     const todayIso = new Date().toISOString().slice(0, 10);
     const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -175,7 +224,7 @@
     calBody.innerHTML = html;
 
     calBody.querySelectorAll('.cal-day:not(.empty)').forEach(el => {
-      el.addEventListener('click', () => { loadDate(el.dataset.date); });
+      el.addEventListener('click', () => loadDate(el.dataset.date));
     });
     document.getElementById('calPrev').addEventListener('click', () => { calMonth--; if (calMonth < 1) { calMonth = 12; calYear--; } renderCalendar(); });
     document.getElementById('calNext').addEventListener('click', () => { calMonth++; if (calMonth > 12) { calMonth = 1; calYear++; } renderCalendar(); });
@@ -183,16 +232,9 @@
 
   // Init timeline
   Timeline.init(timelineEl, autoSave);
-
-  // Load today
   await loadDate(currentDate);
 
-  // Add button
-  btnAdd.addEventListener('click', () => {
-    Guided.open((block) => { Timeline.addBlock(block); });
-  });
-
-  // Open-slot click-to-add (double-click/right-click on gaps)
+  // Open-slot click-to-add (double-click gaps)
   Timeline.onSlotAdd((start, end) => {
     Guided.open((block) => {
       block.start = block.start || start;
@@ -201,7 +243,7 @@
     }, { start, end });
   });
 
-  // Save button (local + remote user backup, no Excel)
+  // Save button
   const btnSave = document.getElementById('btnSave');
   btnSave.addEventListener('click', async () => {
     const blocks = Timeline.getBlocks();
@@ -223,13 +265,10 @@
   // Weekly report button
   document.getElementById('btnWeekReport').addEventListener('click', () => { Report.showWeek(currentDate); });
 
-  // Clipboard
-  btnClipboard.addEventListener('click', () => { Report.show(Timeline.getBlocks()); });
-
   // Settings button
   btnSettings.addEventListener('click', () => { Settings.open(); });
 
-  // Title bar exit button
+  // Title bar exit
   document.getElementById('titleBarExit').addEventListener('click', async () => {
     if (!confirm('Exit DayBuilder?')) return;
     await fetch('/api/shutdown', { method: 'POST' });

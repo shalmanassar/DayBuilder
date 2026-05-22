@@ -91,6 +91,26 @@ const Timeline = (() => {
       if (prevEnd && cur.start && prevEnd < cur.start) track.appendChild(createGap(prevEnd, cur.start, minTime));
     }
 
+    // Accept palette drops
+    track.addEventListener('dragover', (e) => {
+      if (e.dataTransfer.types.includes('application/x-palette-type')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+    track.addEventListener('drop', (e) => {
+      const type = e.dataTransfer.getData('application/x-palette-type');
+      if (!type) return;
+      e.preventDefault();
+      const trackRect = track.getBoundingClientRect();
+      const relY = e.clientY - trackRect.top;
+      const rawMin = minTime + relY / PX_PER_MIN;
+      const snapped = snapTo(rawMin);
+      const start = minToTime(snapped);
+      const end = minToTime(snapped + 15);
+      addBlock({ id: crypto.randomUUID(), type, start, end, memo: null, device: null, qty: null });
+    });
+
     wrapper.appendChild(gutter);
     wrapper.appendChild(track);
     container.appendChild(wrapper);
@@ -339,6 +359,26 @@ const Timeline = (() => {
     if (!block.id) block.id = crypto.randomUUID();
     if (block.type === 'clock_in' || block.type === 'clock_out') {
       blocks = blocks.filter(b => b.type !== block.type);
+      blocks.push(block);
+      pushHistory(); render(); notify();
+      return;
+    }
+    // Deflect around locked blocks
+    const start = timeToMin(block.start), end = timeToMin(block.end);
+    const dur = end - start;
+    for (const lb of blocks.filter(b => b.locked && !isMarker(b))) {
+      const ls = timeToMin(lb.start), le = timeToMin(lb.end);
+      if (start < le && end > ls) {
+        // Collision — snap to nearest side
+        const snapBefore = snapTo(ls - dur);
+        const snapAfter = snapTo(le);
+        const distBefore = Math.abs(start - snapBefore);
+        const distAfter = Math.abs(start - snapAfter);
+        const finalStart = distBefore <= distAfter ? snapBefore : snapAfter;
+        block.start = minToTime(finalStart);
+        block.end = minToTime(finalStart + dur);
+        break;
+      }
     }
     blocks.push(block);
     pushHistory(); render(); notify();
