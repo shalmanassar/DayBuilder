@@ -189,10 +189,31 @@ const Timeline = (() => {
     if (!block.locked) {
       el.querySelectorAll('.tl-handle').forEach(h => {
         h.addEventListener('pointerdown', (e) => startResize(e, block, h.dataset.edge));
+        h.addEventListener('dblclick', (e) => { e.stopPropagation(); fillToAdjacent(block, h.dataset.edge); });
       });
     }
 
     return el;
+  }
+
+  // --- Double-click handle: fill to adjacent block edge ---
+  function fillToAdjacent(block, edge) {
+    const sorted = [...blocks].filter(b => !isMarker(b)).sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    const idx = sorted.findIndex(b => b.id === block.id);
+    if (idx < 0) return;
+
+    if (edge === 'top') {
+      // Fill up to previous block's end (or day start)
+      const prev = sorted[idx - 1];
+      const target = prev ? timeToMin(prev.end) : DAY_START;
+      block.start = minToTime(target);
+    } else {
+      // Fill down to next block's start (or day end)
+      const next = sorted[idx + 1];
+      const target = next ? timeToMin(next.start) : DAY_END;
+      block.end = minToTime(target);
+    }
+    pushHistory(); render(); notify();
   }
 
   // --- Pointer-based drag-to-move ---

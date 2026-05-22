@@ -480,6 +480,7 @@ footer {
   justify-content: center;
   background: rgba(243,156,18,0.08);
   border: 1px dashed var(--warning);
+  border-right: 4px solid var(--warning);
   border-radius: 4px;
   font-size: 0.75rem;
   color: var(--warning);
