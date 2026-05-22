@@ -1,5 +1,6 @@
 /* DayBuilder — timeline.js
-   Graduated hour column, color-coded blocks, 5-min snap, drop zones, speech-bubble popover */
+   Graduated hour column, color-coded blocks, 15-min snap, pointer drag-to-move,
+   locked blocks, split/snap around locked blocks */
 
 const Timeline = (() => {
   let blocks = [];
@@ -12,7 +13,7 @@ const Timeline = (() => {
   let nowInterval = null;
 
   const PX_PER_MIN = 1.8;
-  const SNAP = 5;
+  const SNAP = 15;
   const DAY_START = 7 * 60;
   const DAY_END = 17 * 60;
 
@@ -40,6 +41,8 @@ const Timeline = (() => {
   function undo() { if (historyIdx > 0) { historyIdx--; blocks = JSON.parse(history[historyIdx]); render(); notify(); } }
   function redo() { if (historyIdx < history.length - 1) { historyIdx++; blocks = JSON.parse(history[historyIdx]); render(); notify(); } }
   function onKeyDown(e) { if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); } if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); } }
+
+  function snapTo(min) { return Math.round(min / SNAP) * SNAP; }
 
   // --- Render ---
   function render() {
@@ -78,19 +81,6 @@ const Timeline = (() => {
       track.appendChild(line);
     }
 
-    // Drop zones every 15 min
-    for (let m = minTime; m < maxTime; m += 15) {
-      const dz = document.createElement('div');
-      dz.className = 'tl-dropzone';
-      dz.style.top = ((m - minTime) * PX_PER_MIN) + 'px';
-      dz.style.height = (15 * PX_PER_MIN) + 'px';
-      dz.dataset.time = minToTime(m);
-      dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('dz-hover'); });
-      dz.addEventListener('dragleave', () => dz.classList.remove('dz-hover'));
-      dz.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('dz-hover'); moveBlockToTime(e.dataTransfer.getData('text/plain'), minToTime(m)); });
-      track.appendChild(dz);
-    }
-
     // Blocks
     sorted.forEach(b => track.appendChild(createBlockEl(b, minTime)));
 
@@ -112,11 +102,12 @@ const Timeline = (() => {
   function createBlockEl(block, minTime) {
     const el = document.createElement('div');
     el.className = 'tl-block';
+    if (block.locked) el.classList.add('tl-locked');
     el.dataset.id = block.id;
     const color = TYPE_COLORS[block.type] || '#3498db';
     const label = TYPE_LABELS[block.type] || block.type;
     const startMin = timeToMin(block.start) || 0;
-    const endMin = timeToMin(block.end) || startMin;
+    const endMin = timeToMin(block.end) || (startMin + 15);
     const top = (startMin - minTime) * PX_PER_MIN;
 
     if (isMarker(block)) {
@@ -138,31 +129,138 @@ const Timeline = (() => {
     const device = block.device ? ` · ${block.device}` : '';
     const qty = block.qty ? ` x${block.qty}` : '';
     const memo = block.memo ? ` — ${block.memo}` : '';
+    const lockIcon = block.locked ? '<span class="tl-lock-icon">🔒</span>' : '';
 
     el.innerHTML = `
       <div class="tl-block-header">
-        <span class="tl-block-label">${label}${device}${qty}</span>
+        <span class="tl-block-label">${lockIcon}${label}${device}${qty}</span>
         <span class="tl-block-time">${fmtTime(block.start)} – ${fmtTime(block.end)}</span>
       </div>
       ${memo ? `<div class="tl-block-memo">${memo}</div>` : ''}
-      <div class="tl-handle tl-handle-top" data-edge="top"></div>
-      <div class="tl-handle tl-handle-bottom" data-edge="bottom"></div>
+      ${!block.locked ? `<div class="tl-handle tl-handle-top" data-edge="top"><span class="tl-handle-bar"></span></div>
+      <div class="tl-handle tl-handle-bottom" data-edge="bottom"><span class="tl-handle-bar"></span></div>` : ''}
     `;
 
-    el.addEventListener('click', (e) => { if (!e.target.classList.contains('tl-handle')) showPopover(block, el); });
+    // Pointer interactions (click vs drag)
+    let pDown = null;
+    el.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.tl-handle')) return;
+      pDown = { x: e.clientX, y: e.clientY };
+      if (!block.locked) el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!pDown || block.locked) return;
+      const dy = Math.abs(e.clientY - pDown.y);
+      if (dy > 5 && !el.classList.contains('tl-dragging')) {
+        el.classList.add('tl-dragging');
+        startDragMove(e, block, pDown.y);
+        pDown = null;
+      }
+    });
+    el.addEventListener('pointerup', (e) => {
+      if (!pDown) return;
+      const dx = Math.abs(e.clientX - pDown.x), dy = Math.abs(e.clientY - pDown.y);
+      if (dx < 5 && dy < 5) showPopover(block, el);
+      pDown = null;
+    });
 
-    // Drag
-    el.setAttribute('draggable', 'true');
-    el.addEventListener('dragstart', (e) => { if (e.target.classList.contains('tl-handle')) { e.preventDefault(); return; } e.dataTransfer.setData('text/plain', block.id); el.classList.add('dragging'); const track = container.querySelector('.tl-track'); if (track) track.classList.add('drag-active'); });
-    el.addEventListener('dragend', () => { el.classList.remove('dragging'); const track = container.querySelector('.tl-track'); if (track) track.classList.remove('drag-active'); });
-
-    // Resize
-    el.querySelectorAll('.tl-handle').forEach(h => { h.addEventListener('pointerdown', (e) => startResize(e, block, h.dataset.edge)); });
+    // Resize handles (only if not locked)
+    if (!block.locked) {
+      el.querySelectorAll('.tl-handle').forEach(h => {
+        h.addEventListener('pointerdown', (e) => startResize(e, block, h.dataset.edge));
+      });
+    }
 
     return el;
   }
 
-  // --- Resize ---
+  // --- Pointer-based drag-to-move ---
+  function startDragMove(e, block, startY) {
+    const origStart = timeToMin(block.start);
+    const dur = timeToMin(block.end) - origStart;
+    const track = container.querySelector('.tl-track');
+    const minTime = parseInt(track.dataset.minTime);
+
+    const ghost = document.createElement('div');
+    ghost.className = 'tl-drag-ghost';
+    ghost.style.height = (dur * PX_PER_MIN) + 'px';
+    ghost.textContent = (TYPE_LABELS[block.type] || block.type) + ' (' + dur + 'm)';
+    track.appendChild(ghost);
+
+    function positionGhost(clientY) {
+      const trackRect = track.getBoundingClientRect();
+      const relY = clientY - trackRect.top;
+      const rawMin = minTime + relY / PX_PER_MIN;
+      const snapped = snapTo(rawMin);
+      ghost.style.top = ((snapped - minTime) * PX_PER_MIN) + 'px';
+      ghost.dataset.snapped = snapped;
+    }
+    positionGhost(e.clientY);
+
+    function onMove(ev) { positionGhost(ev.clientY); }
+    function onUp() {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      const newStart = parseInt(ghost.dataset.snapped);
+      ghost.remove();
+      if (!isNaN(newStart) && newStart !== origStart) {
+        applyMoveWithLockLogic(block, newStart, dur);
+      }
+      // Remove dragging class from all blocks
+      container.querySelectorAll('.tl-dragging').forEach(el => el.classList.remove('tl-dragging'));
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  // --- Lock-aware move logic ---
+  function applyMoveWithLockLogic(block, newStart, dur) {
+    const newEnd = newStart + dur;
+    const lockedBlocks = blocks.filter(b => b.locked && b.id !== block.id && !isMarker(b));
+
+    // Check collision with any locked block
+    for (const lb of lockedBlocks) {
+      const ls = timeToMin(lb.start), le = timeToMin(lb.end);
+      if (newStart < le && newEnd > ls) {
+        // Collision! Snap to nearest side of locked block
+        const snapBefore = ls - dur; // place entirely before locked
+        const snapAfter = le;        // place entirely after locked
+        const distBefore = Math.abs(newStart - snapBefore);
+        const distAfter = Math.abs(newStart - snapAfter);
+
+        if (dur > (ls - snapTo(0)) && dur > (snapTo(1440) - le)) {
+          // Block is too long to fit on either side — split it
+          splitAroundLocked(block, lb);
+          return;
+        }
+
+        const finalStart = distBefore <= distAfter ? snapTo(snapBefore) : snapTo(snapAfter);
+        block.start = minToTime(finalStart);
+        block.end = minToTime(finalStart + dur);
+        pushHistory(); render(); notify();
+        return;
+      }
+    }
+
+    // No collision — just move
+    block.start = minToTime(newStart);
+    block.end = minToTime(newEnd);
+    pushHistory(); render(); notify();
+  }
+
+  function splitAroundLocked(block, lockedBlock) {
+    const ls = timeToMin(lockedBlock.start), le = timeToMin(lockedBlock.end);
+    const bs = timeToMin(block.start), be = timeToMin(block.end);
+    const idx = blocks.findIndex(b => b.id === block.id);
+    if (idx < 0) return;
+
+    const b1 = { ...block, id: crypto.randomUUID(), start: block.start, end: minToTime(ls) };
+    const b2 = { ...block, id: crypto.randomUUID(), start: minToTime(le), end: block.end, qty: null };
+    blocks.splice(idx, 1, b1, b2);
+    pushHistory(); render(); notify();
+  }
+
+  // --- Resize (lock-aware) ---
   function startResize(e, block, edge) {
     e.preventDefault(); e.stopPropagation();
     const startY = e.clientY;
@@ -179,16 +277,42 @@ const Timeline = (() => {
 
     function onMove(ev) {
       const dy = ev.clientY - startY;
-      const clamped = Math.max(0, Math.min(1439, Math.round((timeToMin(origTime) + Math.round(dy / PX_PER_MIN / SNAP) * SNAP) / SNAP) * SNAP));
+      const rawMin = timeToMin(origTime) + dy / PX_PER_MIN;
+      const clamped = Math.max(0, Math.min(1439, snapTo(rawMin)));
       const newTime = minToTime(clamped);
+
       if (edge === 'top') {
-        block.start = newTime;
-        if (blockIdx > 0 && !isMarker(sorted[blockIdx - 1]) && sorted[blockIdx - 1].end && timeToMin(sorted[blockIdx - 1].end) > clamped) { sorted[blockIdx - 1].end = newTime; updateBlock(sorted[blockIdx - 1], false); }
+        // Don't resize into a locked block
+        const lockedAbove = blocks.filter(b => b.locked && b.id !== block.id && !isMarker(b) && timeToMin(b.end) > clamped && timeToMin(b.start) < timeToMin(block.end));
+        if (lockedAbove.length) {
+          const nearest = Math.max(...lockedAbove.map(b => timeToMin(b.end)));
+          block.start = minToTime(Math.max(clamped, nearest));
+        } else {
+          block.start = newTime;
+          // Push non-locked neighbors
+          if (blockIdx > 0 && !isMarker(sorted[blockIdx - 1]) && !sorted[blockIdx - 1].locked && sorted[blockIdx - 1].end && timeToMin(sorted[blockIdx - 1].end) > clamped) {
+            sorted[blockIdx - 1].end = newTime;
+            updateBlock(sorted[blockIdx - 1], false);
+          }
+        }
       } else {
-        block.end = newTime;
-        if (blockIdx < sorted.length - 1 && !isMarker(sorted[blockIdx + 1]) && sorted[blockIdx + 1].start && timeToMin(sorted[blockIdx + 1].start) < clamped) { const d = timeToMin(sorted[blockIdx + 1].end) - timeToMin(sorted[blockIdx + 1].start); sorted[blockIdx + 1].start = newTime; sorted[blockIdx + 1].end = minToTime(clamped + d); updateBlock(sorted[blockIdx + 1], false); }
+        // Don't resize into a locked block
+        const lockedBelow = blocks.filter(b => b.locked && b.id !== block.id && !isMarker(b) && timeToMin(b.start) < clamped && timeToMin(b.end) > timeToMin(block.start));
+        if (lockedBelow.length) {
+          const nearest = Math.min(...lockedBelow.map(b => timeToMin(b.start)));
+          block.end = minToTime(Math.min(clamped, nearest));
+        } else {
+          block.end = newTime;
+          // Push non-locked neighbors
+          if (blockIdx < sorted.length - 1 && !isMarker(sorted[blockIdx + 1]) && !sorted[blockIdx + 1].locked && sorted[blockIdx + 1].start && timeToMin(sorted[blockIdx + 1].start) < clamped) {
+            const d = timeToMin(sorted[blockIdx + 1].end) - timeToMin(sorted[blockIdx + 1].start);
+            sorted[blockIdx + 1].start = newTime;
+            sorted[blockIdx + 1].end = minToTime(clamped + d);
+            updateBlock(sorted[blockIdx + 1], false);
+          }
+        }
       }
-      tip.textContent = fmtTime(newTime);
+      tip.textContent = fmtTime(edge === 'top' ? block.start : block.end);
       tip.style.left = ev.clientX + 12 + 'px';
       tip.style.top = ev.clientY - 10 + 'px';
       updateBlock(block, false);
@@ -204,20 +328,15 @@ const Timeline = (() => {
     document.addEventListener('pointerup', onUp);
   }
 
-  // --- Move / Reorder ---
-  function moveBlockToTime(blockId, newStart) {
-    const idx = blocks.findIndex(b => b.id === blockId);
-    if (idx < 0) return;
-    const block = blocks[idx];
-    const dur = timeToMin(block.end) - timeToMin(block.start);
-    block.start = newStart;
-    block.end = dur > 0 ? minToTime(timeToMin(newStart) + dur) : null;
-    pushHistory(); render(); notify();
+  // --- Lock toggle ---
+  function toggleLock(blockId) {
+    const b = blocks.find(b => b.id === blockId);
+    if (b) { b.locked = !b.locked; pushHistory(); render(); notify(); }
   }
 
+  // --- Add / Delete / Split ---
   function addBlock(block) {
     if (!block.id) block.id = crypto.randomUUID();
-    // Replace existing clock_in/clock_out instead of duplicating
     if (block.type === 'clock_in' || block.type === 'clock_out') {
       blocks = blocks.filter(b => b.type !== block.type);
     }
@@ -235,7 +354,7 @@ const Timeline = (() => {
     pushHistory(); render(); notify();
   }
 
-  // --- Popover (speech bubble, anchored to block) ---
+  // --- Popover ---
   function showPopover(block, anchorEl) {
     closePopover();
     const pop = document.createElement('div');
@@ -246,17 +365,23 @@ const Timeline = (() => {
 
     const isM = isMarker(block);
     const midTime = (!isM && block.start && block.end) ? minToTime(Math.round((timeToMin(block.start) + timeToMin(block.end)) / 2 / SNAP) * SNAP) : '';
+    const lockLabel = block.locked ? '🔓 Unlock' : '🔒 Lock';
     pop.innerHTML = `
       <div class="pop-arrow"></div>
       <label>Type<select class="pop-type">${Object.entries(TYPE_LABELS).map(([k,v]) => `<option value="${k}" ${k===block.type?'selected':''}>${v}</option>`).join('')}</select></label>
       ${!isM ? `<label>Device<input class="pop-device" value="${block.device||''}"></label><label>Qty<input class="pop-qty" type="number" value="${block.qty||''}"></label>` : ''}
-      <label>Start<input class="pop-start" type="time" value="${block.start||''}" step="300"></label>
-      ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}" step="300"></label>` : ''}
+      <label>Start<input class="pop-start" type="time" value="${block.start||''}" step="900"></label>
+      ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}" step="900"></label>` : ''}
       <label>Memo<input class="pop-memo" value="${block.memo||''}"></label>
-      ${!isM && block.start && block.end ? `<div class="pop-split"><label>Split at<input class="pop-split-time" type="time" value="${midTime}" step="300"></label><button class="pop-split-btn">✂ Split</button></div>` : ''}
-      <div class="pop-actions"><button class="pop-save">Save</button><button class="pop-delete">Delete</button><button class="pop-close">✕</button></div>
+      ${!isM && block.start && block.end ? `<div class="pop-split"><label>Split at<input class="pop-split-time" type="time" value="${midTime}" step="900"></label><button class="pop-split-btn">✂ Split</button></div>` : ''}
+      <div class="pop-actions">
+        ${!isM ? `<button class="pop-lock">${lockLabel}</button>` : ''}
+        <button class="pop-save">Save</button>
+        <button class="pop-delete">Delete</button>
+        <button class="pop-close">✕</button>
+      </div>
     `;
-    // Position: try right of block, clamp to viewport
+    // Position
     const rect = anchorEl.getBoundingClientRect();
     const popW = pop.offsetWidth || 240;
     const popH = pop.offsetHeight || 300;
@@ -273,6 +398,8 @@ const Timeline = (() => {
     pop.querySelector('.pop-save').onclick = () => { block.type = pop.querySelector('.pop-type').value; block.device = pop.querySelector('.pop-device')?.value || null; block.qty = parseInt(pop.querySelector('.pop-qty')?.value) || null; block.start = pop.querySelector('.pop-start').value || null; block.end = pop.querySelector('.pop-end')?.value || null; block.memo = pop.querySelector('.pop-memo').value || null; updateBlock(block, true); closePopover(); };
     pop.querySelector('.pop-delete').onclick = () => { deleteBlock(block.id); closePopover(); };
     pop.querySelector('.pop-close').onclick = closePopover;
+    const lockBtn = pop.querySelector('.pop-lock');
+    if (lockBtn) lockBtn.onclick = () => { toggleLock(block.id); closePopover(); };
     const splitBtn = pop.querySelector('.pop-split-btn');
     if (splitBtn) {
       splitBtn.onclick = () => {
@@ -282,7 +409,6 @@ const Timeline = (() => {
         closePopover();
       };
     }
-    // Close on outside click or Escape
     setTimeout(() => { document.addEventListener('click', outsideClose); document.addEventListener('keydown', popKeyHandler); }, 0);
   }
 
@@ -339,12 +465,15 @@ const Timeline = (() => {
     el.style.top = top + 'px';
     el.dataset.time = timeStr;
     el.title = 'Click to start a block now';
-    el.addEventListener('click', () => {
-      const t = minToTime(Math.round(nowMin / SNAP) * SNAP);
-      addBlock({ id: crypto.randomUUID(), type: 'asset_processing', start: t, end: null, memo: null, device: null, qty: null });
+    el.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const snapped = snapTo(nowMin);
+      const t = minToTime(snapped);
+      const tEnd = minToTime(snapped + 15);
+      addBlock({ id: crypto.randomUUID(), type: 'asset_processing', start: t, end: tEnd, memo: null, device: null, qty: null });
     });
     track.appendChild(el);
   }
 
-  return { init, setBlocks, getBlocks, addBlock, deleteBlock, undo, redo, render, onSlotAdd, setDate };
+  return { init, setBlocks, getBlocks, addBlock, deleteBlock, toggleLock, undo, redo, render, onSlotAdd, setDate };
 })();
