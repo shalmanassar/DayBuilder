@@ -48,6 +48,7 @@ const Settings = (() => {
       </div>
 
       <div class="settings-reset">
+        <button id="setSyncPull">Sync from Share</button>
         <button id="setRefresh">Refresh App</button>
         <button id="setResetSettings">Reset Settings</button>
         <button id="setResetFactory">Factory Reset</button>
@@ -95,6 +96,12 @@ const Settings = (() => {
     };
 
     // Reset buttons
+    document.getElementById('setSyncPull').onclick = async () => {
+      const res = await fetch('/api/sync/pull', { method: 'POST' });
+      const data = await res.json();
+      alert(data.msg || data.error || 'Done');
+      if (data.ok) location.reload();
+    };
     document.getElementById('setRefresh').onclick = async () => {
       const res = await fetch('/api/reset/refresh', { method: 'POST' });
       const data = await res.json();

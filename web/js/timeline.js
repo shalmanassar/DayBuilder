@@ -102,13 +102,14 @@ const Timeline = (() => {
       const type = e.dataTransfer.getData('application/x-palette-type');
       if (!type) return;
       e.preventDefault();
+      const memo = e.dataTransfer.getData('application/x-palette-memo') || null;
       const trackRect = track.getBoundingClientRect();
       const relY = e.clientY - trackRect.top;
       const rawMin = minTime + relY / PX_PER_MIN;
       const snapped = snapTo(rawMin);
       const start = minToTime(snapped);
       const end = minToTime(snapped + 15);
-      addBlock({ id: crypto.randomUUID(), type, start, end, memo: null, device: null, qty: null });
+      addBlock({ id: crypto.randomUUID(), type, start, end, memo, device: null, qty: null });
     });
 
     wrapper.appendChild(gutter);

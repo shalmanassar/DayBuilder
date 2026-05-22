@@ -172,13 +172,50 @@
     `;
   }
 
-  // --- Palette drag-to-timeline ---
+  // --- Palette drag-to-timeline + recents loading ---
+  const paletteRecents = document.getElementById('paletteRecents');
+  let selectedPaletteType = null;
+
   document.querySelectorAll('.palette-item').forEach(item => {
     item.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('application/x-palette-type', item.dataset.type);
+      e.dataTransfer.setData('application/x-palette-memo', '');
       e.dataTransfer.effectAllowed = 'copy';
     });
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.palette-item').forEach(i => i.classList.remove('palette-active'));
+      item.classList.add('palette-active');
+      selectedPaletteType = item.dataset.type;
+      loadRecents(item.dataset.type);
+    });
   });
+
+  async function loadRecents(type) {
+    paletteRecents.innerHTML = '<div class="lr-empty">Loading...</div>';
+    try {
+      const recents = await fetch(`/api/recents/${type}`).then(r => r.json());
+      if (recents.length === 0) {
+        paletteRecents.innerHTML = '<div class="lr-empty">No saved descriptions</div>';
+        return;
+      }
+      paletteRecents.innerHTML = '';
+      recents.forEach(memo => {
+        const el = document.createElement('div');
+        el.className = 'palette-recent-item';
+        el.draggable = true;
+        el.textContent = memo;
+        el.title = `Drag to timeline: ${type} — ${memo}`;
+        el.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('application/x-palette-type', type);
+          e.dataTransfer.setData('application/x-palette-memo', memo);
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+        paletteRecents.appendChild(el);
+      });
+    } catch (e) {
+      paletteRecents.innerHTML = '<div class="lr-empty">Unable to load</div>';
+    }
+  }
 
   // --- Calendar mini-map ---
   const calToggle = document.getElementById('calendarToggle');
