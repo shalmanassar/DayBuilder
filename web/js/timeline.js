@@ -188,8 +188,22 @@ const Timeline = (() => {
     // Resize handles (only if not locked)
     if (!block.locked) {
       el.querySelectorAll('.tl-handle').forEach(h => {
-        h.addEventListener('pointerdown', (e) => startResize(e, block, h.dataset.edge));
-        h.addEventListener('dblclick', (e) => { e.stopPropagation(); fillToAdjacent(block, h.dataset.edge); });
+        let clickCount = 0;
+        let clickTimer = null;
+        h.addEventListener('pointerdown', (e) => {
+          clickCount++;
+          if (clickCount === 2) {
+            clearTimeout(clickTimer);
+            clickCount = 0;
+            e.preventDefault(); e.stopPropagation();
+            fillToAdjacent(block, h.dataset.edge);
+            return;
+          }
+          clickTimer = setTimeout(() => {
+            clickCount = 0;
+            startResize(e, block, h.dataset.edge);
+          }, 250);
+        });
       });
     }
 
@@ -203,12 +217,10 @@ const Timeline = (() => {
     if (idx < 0) return;
 
     if (edge === 'top') {
-      // Fill up to previous block's end (or day start)
       const prev = sorted[idx - 1];
       const target = prev ? timeToMin(prev.end) : DAY_START;
       block.start = minToTime(target);
     } else {
-      // Fill down to next block's start (or day end)
       const next = sorted[idx + 1];
       const target = next ? timeToMin(next.start) : DAY_END;
       block.end = minToTime(target);
