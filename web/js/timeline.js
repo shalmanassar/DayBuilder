@@ -8,6 +8,8 @@ const Timeline = (() => {
   let container = null;
   let onChangeCallback = null;
   let onSlotAddCallback = null;
+  let viewingDate = null;
+  let nowInterval = null;
 
   const PX_PER_MIN = 1.8;
   const SNAP = 5;
@@ -60,6 +62,7 @@ const Timeline = (() => {
     const totalH = (maxTime - minTime) * PX_PER_MIN;
     track.style.height = totalH + 'px';
     track.style.position = 'relative';
+    track.dataset.minTime = minTime;
 
     // Hour gutter + gridlines
     for (let m = minTime; m <= maxTime; m += 60) {
@@ -101,6 +104,7 @@ const Timeline = (() => {
     wrapper.appendChild(gutter);
     wrapper.appendChild(track);
     container.appendChild(wrapper);
+    updateNowLine();
   }
 
   function isMarker(b) { return b.type === 'clock_in' || b.type === 'clock_out'; }
@@ -309,5 +313,38 @@ const Timeline = (() => {
   function minToTime(m) { const h = Math.floor(Math.max(0, m) / 60) % 24; const min = ((m % 60) + 60) % 60; return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`; }
   function fmtTime(t) { if (!t) return '?'; const [h, m] = t.split(':').map(Number); const ampm = h >= 12 ? 'pm' : 'am'; const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h; return `${h12}:${String(m).padStart(2,'0')} ${ampm}`; }
 
-  return { init, setBlocks, getBlocks, addBlock, deleteBlock, undo, redo, render, onSlotAdd };
+  // --- Now Line ---
+  function setDate(iso) {
+    viewingDate = iso;
+    updateNowLine();
+    clearInterval(nowInterval);
+    nowInterval = setInterval(updateNowLine, 60000);
+  }
+
+  function updateNowLine() {
+    const line = container && container.querySelector('.tl-now-line');
+    const today = new Date().toISOString().slice(0, 10);
+    if (viewingDate !== today) { if (line) line.remove(); return; }
+    const track = container && container.querySelector('.tl-track');
+    if (!track) return;
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const minTime = parseInt(track.dataset.minTime);
+    if (isNaN(minTime) || nowMin < minTime) { if (line) line.remove(); return; }
+    const top = (nowMin - minTime) * PX_PER_MIN;
+    const timeStr = fmtTime(minToTime(nowMin));
+    if (line) { line.style.top = top + 'px'; line.dataset.time = timeStr; return; }
+    const el = document.createElement('div');
+    el.className = 'tl-now-line';
+    el.style.top = top + 'px';
+    el.dataset.time = timeStr;
+    el.title = 'Click to start a block now';
+    el.addEventListener('click', () => {
+      const t = minToTime(Math.round(nowMin / SNAP) * SNAP);
+      addBlock({ id: crypto.randomUUID(), type: 'asset_processing', start: t, end: null, memo: null, device: null, qty: null });
+    });
+    track.appendChild(el);
+  }
+
+  return { init, setBlocks, getBlocks, addBlock, deleteBlock, undo, redo, render, onSlotAdd, setDate };
 })();

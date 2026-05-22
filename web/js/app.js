@@ -91,6 +91,7 @@
     currentDate = iso;
     dateTitle.textContent = formatTitle(iso);
     datePicker.value = iso;
+    Timeline.setDate(iso);
     // Highlight if viewing today
     const today = new Date().toISOString().slice(0, 10);
     dateTitle.classList.toggle('date-today', iso === today);

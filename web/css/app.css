@@ -180,6 +180,36 @@ footer {
   pointer-events: none;
 }
 
+.tl-now-line {
+  position: absolute;
+  left: -20px; right: -60px;
+  height: 3px;
+  background: #e74c3c;
+  z-index: 20;
+  cursor: pointer;
+  box-shadow: 0 0 6px #e74c3c88;
+}
+.tl-now-line::before {
+  content: '';
+  position: absolute;
+  left: 10px; top: -5px;
+  width: 12px; height: 12px;
+  background: #e74c3c;
+  border-radius: 50%;
+}
+.tl-now-line::after {
+  content: attr(data-time);
+  position: absolute;
+  right: 0; top: -9px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  background: #e74c3c;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
 .tl-dropzone {
   position: absolute;
   left: 0; right: 0;
@@ -261,7 +291,7 @@ footer {
 /* Resize handles */
 .tl-handle {
   position: absolute;
-  left: 0; right: 0;
+  left: -12px; right: -12px;
   height: 14px;
   cursor: ns-resize;
   z-index: 10;
@@ -273,17 +303,17 @@ footer {
 .tl-handle::after {
   content: '';
   position: absolute;
-  left: 10%; right: 10%;
-  height: 3px;
+  left: 0; right: 0;
+  height: 4px;
   top: 50%;
   transform: translateY(-50%);
   background: transparent;
   border-radius: 2px;
-  transition: background 0.15s;
+  transition: background 0.15s, height 0.1s;
 }
 
-.tl-block:hover .tl-handle::after { background: var(--accent); opacity: 0.6; }
-.tl-handle:hover::after { background: var(--accent) !important; opacity: 1 !important; height: 4px; }
+.tl-block:hover .tl-handle::after { background: var(--accent); opacity: 0.7; }
+.tl-handle:hover::after { background: var(--accent) !important; opacity: 1 !important; height: 5px; }
 
 /* Resize tooltip */
 .tl-resize-tip {
