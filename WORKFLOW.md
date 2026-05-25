@@ -79,6 +79,60 @@ The `knowledge` tool persists across sessions. Used for:
 
 Search with: `knowledge search --query "governance employee CRUD"`
 
+## User Commands Reference
+
+### Starting & Switching
+
+| Command | What it does |
+|---------|--------------|
+| `kiro-cli chat --agent haic` | Start a new HAIC session (reads state files, picks up where left off) |
+| `Ctrl+Shift+H` | Toggle to/from HAIC agent mid-session |
+| `/chat new` | Start fresh conversation (old session preserved) |
+| `kiro-cli chat --resume` | Resume most recent session |
+| `kiro-cli chat --resume-picker` | Pick from list of past sessions |
+
+### Monitoring
+
+| Command | What it does |
+|---------|--------------|
+| `Ctrl+G` | Crew monitor — see active Masters/Minions in real-time |
+| `git log --oneline -10` | See recent commits from Masters |
+| Read `BUILDSTATE.md` | Current task position and progress |
+| Read `HAIC_STATE.md` | HAIC generation, iteration count, lessons |
+| `knowledge show` | List all indexed knowledge bases |
+| `knowledge search --query "..."` | Search past work across all sessions |
+
+### Session Persistence
+
+| Command | What it does |
+|---------|--------------|
+| `/chat save <path>` | Export current session to file |
+| `/chat load <path>` | Restore a saved session |
+| `/context` | View context window usage (% full) |
+
+### Intervening
+
+During a build, just type — the HAIC is your direct conversation partner. It will:
+- Inform you of progress after each Master cycle
+- Ask you if it hits a blocker or needs a decision
+- Tell you when handoff is complete
+
+You can also:
+- Edit `BUILDSTATE.md` directly to redirect work
+- Edit `HAIC_STATE.md` to force iteration count or mode changes
+
+### Recovery
+
+| Situation | Action |
+|-----------|--------|
+| HAIC seems stuck | Close session, `kiro-cli chat --agent haic` (fresh context, reads state) |
+| Bad code committed | `git revert HEAD`, then restart HAIC |
+| Want to skip a task | Edit BUILDSTATE.md → mark task done, update "Current Master Assignment" |
+| Full reset | Delete `BUILDSTATE.md`, `HAIC_STATE.md`, `HAIC_HANDOFF.md`, run `knowledge clear` |
+| After handoff | Old HAIC says "done" → close that terminal. New HAIC is already running. |
+
+---
+
 ## Monitoring
 
 - Press `Ctrl+G` during a session to see the crew monitor (active subagents)
