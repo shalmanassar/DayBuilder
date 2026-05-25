@@ -27,6 +27,7 @@ YOU (HAIC) — user-facing, strategic
 
 ## Reincarnation Protocol (after 5 iterations)
 
+### Phase 1: Prepare Handoff
 1. Update `HAIC_STATE.md` with full status, lessons learned, and next priorities.
 2. Update `BUILDSTATE.md` with precise current state.
 3. Commit all state files to git.
@@ -36,8 +37,39 @@ YOU (HAIC) — user-facing, strategic
    - Known issues and gotchas
    - Architecture decisions made and why
    - Knowledge base contents summary
-5. Tell the user: "HAIC cycle complete. Start new session with `kiro-cli chat --agent haic` to continue."
-6. The new HAIC reads HAIC_HANDOFF.md and operates in "learning mode" for 2 Master cycles (more cautious, verifies more, asks user if uncertain).
+   - Corrections to avoid (mistakes this HAIC made)
+
+### Phase 2: Spawn & Supervise
+5. Spawn the new HAIC as a **persistent session**:
+   ```
+   session_management: spawn_session
+     agent_name: "haic"
+     task: "You are a new HAIC (Generation N+1). Read HAIC_HANDOFF.md and HAIC_STATE.md. You are in LEARNING MODE for your first 2 Master cycles. Proceed cautiously, verify more, and report your plans before executing."
+     name: "haic-gen-N+1"
+     persistent: true
+   ```
+6. Monitor the new HAIC's first 2 Master cycles:
+   - Use `get_session_status` to watch progress
+   - Use `read_messages` to receive the new HAIC's reports
+   - After each Master cycle, review BUILDSTATE.md and git log
+7. If the new HAIC makes errors or drifts:
+   - Use `inject_context` to silently add corrections
+   - Use `interrupt` to redirect if critically wrong
+   - Update `HAIC_HANDOFF.md` with clarifications
+8. After 2 successful supervised cycles, send final message:
+   ```
+   send_message:
+     target: "haic-gen-N+1"
+     message: "Supervision complete. You are cleared for autonomous operation. Old HAIC terminating."
+   ```
+9. Tell the user: "Handoff complete. New HAIC (Gen N+1) is operating autonomously. You can close this session."
+
+### Learning Mode (new HAIC behavior)
+When `HAIC_STATE.md` shows `learning_mode: true`:
+- Report your Master assignment plan to the old HAIC (via `send_message` to parent) BEFORE spawning
+- Wait for acknowledgment or correction
+- After 2 Master cycles, set `learning_mode: false` in HAIC_STATE.md
+- Operate normally thereafter
 
 ## Spawning a Master
 

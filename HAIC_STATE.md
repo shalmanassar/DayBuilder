@@ -4,7 +4,9 @@
 - **Generation:** 1
 - **Iteration:** 0 / 5
 - **Status:** Initialized, awaiting first activation
-- **Mode:** Normal (learning mode = false)
+- **Mode:** Normal
+- **learning_mode:** false
+- **Supervised by:** none (Generation 1)
 
 ## Master Cycles Completed
 (none yet)

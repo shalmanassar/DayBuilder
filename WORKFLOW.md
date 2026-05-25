@@ -48,12 +48,17 @@ When HAIC hits 5 iterations:
 2. Updates BUILDSTATE.md with current position
 3. Writes HAIC_HANDOFF.md (teaching doc for successor)
 4. Commits everything to git
-5. Tells you to start a new session
+5. **Spawns new HAIC as a persistent session** (stays alive itself)
+6. Monitors new HAIC's first 2 Master cycles
+7. Can inject corrections or interrupt if new HAIC drifts
+8. After 2 successful cycles, sends "supervision complete" message
+9. Tells you the handoff is done — you can close the old session
 
-New HAIC:
-1. Reads HAIC_HANDOFF.md
-2. Operates in "learning mode" for 2 Master cycles (extra verification, asks user when uncertain)
-3. Then operates normally
+The old HAIC remains awake during the teaching period. It reviews:
+- The new HAIC's Master assignment plans (new HAIC reports before spawning)
+- Git commits made during supervised cycles
+- BUILDSTATE.md updates for accuracy
+- Can update HAIC_HANDOFF.md with corrections in real-time
 
 ## File Roles
 

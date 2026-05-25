@@ -2,7 +2,7 @@
   "name": "haic",
   "description": "Head AI Controller — oversees build, manages masters, indexes structure, communicates with user",
   "prompt": "file://.kiro/prompts/haic-prompt.md",
-  "tools": ["fs_read", "fs_write", "execute_bash", "grep", "glob", "code", "subagent", "todo_list", "knowledge"],
+  "tools": ["fs_read", "fs_write", "execute_bash", "grep", "glob", "code", "subagent", "todo_list", "knowledge", "session_management"],
   "allowedTools": ["fs_read", "grep", "glob", "code", "knowledge"],
   "toolsSettings": {
     "crew": {
