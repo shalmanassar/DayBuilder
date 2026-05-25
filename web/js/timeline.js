@@ -17,6 +17,17 @@ const Timeline = (() => {
   const DAY_START = 7 * 60;
   const DAY_END = 17 * 60;
 
+  let deviceTypes = null;
+  async function getDeviceTypes() {
+    if (deviceTypes) return deviceTypes;
+    try {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+      deviceTypes = (data.shared && data.shared.device_types || []).filter(d => !d.hidden);
+    } catch (e) { deviceTypes = []; }
+    return deviceTypes;
+  }
+
   const TYPE_COLORS = {
     asset_processing: '#3498db', project: '#9b59b6', admin: '#e67e22',
     meeting: '#1abc9c', '5s': '#f1c40f', learning: '#2ecc71',
@@ -212,13 +223,13 @@ const Timeline = (() => {
 
   // --- Double-click handle: fill to adjacent block edge ---
   function fillToAdjacent(block, edge) {
-    const sorted = [...blocks].filter(b => !isMarker(b)).sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    const sorted = [...blocks].sort((a, b) => (a.start || '').localeCompare(b.start || ''));
     const idx = sorted.findIndex(b => b.id === block.id);
     if (idx < 0) return;
 
     if (edge === 'top') {
       const prev = sorted[idx - 1];
-      const target = prev ? timeToMin(prev.end) : DAY_START;
+      const target = prev ? timeToMin(isMarker(prev) ? prev.start : prev.end) : DAY_START;
       block.start = minToTime(target);
     } else {
       const next = sorted[idx + 1];
@@ -429,8 +440,9 @@ const Timeline = (() => {
   }
 
   // --- Popover ---
-  function showPopover(block, anchorEl) {
+  async function showPopover(block, anchorEl) {
     closePopover();
+    const devTypes = await getDeviceTypes();
     const pop = document.createElement('div');
     pop.className = 'tl-popover';
     pop.style.position = 'fixed';
@@ -443,7 +455,7 @@ const Timeline = (() => {
     pop.innerHTML = `
       <div class="pop-arrow"></div>
       <label>Type<select class="pop-type">${Object.entries(TYPE_LABELS).map(([k,v]) => `<option value="${k}" ${k===block.type?'selected':''}>${v}</option>`).join('')}</select></label>
-      ${!isM ? `<label>Device<input class="pop-device" value="${block.device||''}"></label><label>Qty<input class="pop-qty" type="number" value="${block.qty||''}"></label>` : ''}
+      ${!isM ? `<label>Device<select class="pop-device"><option value="">—</option>${devTypes.map(d => `<option value="${d.id}" ${d.id===block.device?'selected':''}>${d.display}</option>`).join('')}</select></label><label>Qty<input class="pop-qty" type="number" value="${block.qty||''}"></label>` : ''}
       <label>Start<input class="pop-start" type="time" value="${block.start||''}" step="900"></label>
       ${!isM ? `<label>End<input class="pop-end" type="time" value="${block.end||''}" step="900"></label>` : ''}
       <label>Memo<input class="pop-memo" list="pop-memo-list" value="${block.memo||''}"><datalist id="pop-memo-list"></datalist></label>
