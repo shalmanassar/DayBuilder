@@ -1,0 +1,21 @@
+{
+  "name": "haic",
+  "description": "Head AI Controller — oversees build, manages masters, indexes structure, communicates with user",
+  "prompt": "file://.kiro/prompts/haic-prompt.md",
+  "tools": ["fs_read", "fs_write", "execute_bash", "grep", "glob", "code", "subagent", "todo_list", "knowledge"],
+  "allowedTools": ["fs_read", "grep", "glob", "code", "knowledge"],
+  "toolsSettings": {
+    "crew": {
+      "availableAgents": ["master", "minion"],
+      "trustedAgents": ["master"]
+    }
+  },
+  "resources": [
+    "file://BUILDSTATE.md",
+    "file://HAIC_STATE.md",
+    "file://README.md",
+    "file://manager/buildpath_manager.md"
+  ],
+  "keyboardShortcut": "ctrl+shift+h",
+  "welcomeMessage": "HAIC online. Reading HAIC_STATE.md and BUILDSTATE.md for current position..."
+}

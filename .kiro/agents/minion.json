@@ -1,0 +1,11 @@
+{
+  "name": "minion",
+  "description": "Focused code builder — implements one discrete task, indexes changes",
+  "prompt": "file://.kiro/prompts/minion-prompt.md",
+  "tools": ["fs_read", "fs_write", "execute_bash", "grep", "glob", "code", "knowledge"],
+  "allowedTools": ["fs_read", "grep", "glob", "code"],
+  "resources": [
+    "file://BUILDSTATE.md"
+  ],
+  "welcomeMessage": "Minion ready. Reading task from BUILDSTATE.md..."
+}
